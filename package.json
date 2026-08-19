@@ -1,0 +1,53 @@
+{
+  "name": "@yonghds1/nightowl",
+  "version": "0.3.2",
+  "description": "Nightowl - plan 规划任务 / run 静默修改 / report 收尾汇总的 Claude Code 调度技能",
+  "type": "module",
+  "main": "./dist/cli.js",
+  "bin": {
+    "nightowl": "./bin/nightowl.js"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "skills",
+    "templates",
+    "README.md",
+    "README.en.md"
+  ],
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "npm run clean && tsc -p tsconfig.json",
+    "postbuild": "mkdir -p dist/locales && cp -r src/locales/. dist/locales/",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "npm run build && vitest run",
+    "test:watch": "vitest",
+    "dev": "tsx src/cli.ts",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "keywords": [
+    "claude",
+    "skill",
+    "cli",
+    "commander",
+    "typescript"
+  ],
+  "license": "ISC",
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "commander": "^14.0.2",
+    "js-yaml": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^25.9.1",
+    "tsx": "^4.22.3",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.7"
+  }
+}

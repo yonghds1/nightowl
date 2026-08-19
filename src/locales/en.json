@@ -1,0 +1,204 @@
+{
+  "cli": {
+    "description": "Autonomous scheduling skill: plan analyzes requirements interactively, run executes silently, report wraps up",
+    "dirOption": "Project root directory (default: current dir)"
+  },
+  "common": {
+    "noPool": "❌ No task pool. Run nightowl init first",
+    "taskNotFound": "❌ Task not found: {{id}}"
+  },
+  "init": {
+    "desc": "Project-level init (task pool + permissions + skills)",
+    "userOption": "Developer identity name (written to .nightowl/.developer)",
+    "claudeOption": "Claude Code platform (shortcut alias)",
+    "codexOption": "Codex platform (shortcut alias)",
+    "platformOption": "Target agent platform (claude/codex, default claude)",
+    "scopeOption": "Permission write scope: project / local",
+    "skipPermissionsOption": "Skip permission request, only initialize task pool",
+    "forceOption": "Overwrite locally-customized skill files",
+    "alreadyExists": "⚠️  {{file}} already exists, skipping init.",
+    "ok": "🌙 nightowl initialized",
+    "skippedPermissions": "⏭️  Skipped permission request (--skip-permissions)",
+    "howToAdd": "📋 Add tasks with:",
+    "howToAddCmd": "  nightowl add --id T1 --title \"...\" --priority P0 --est-min 15",
+    "howToAddExtra": "  Optional: --depends-on T0 --verify \"cmd\"",
+    "viewStatus": "  View: nightowl status",
+    "developerWritten": "👤 Identity written to {{file}}: {{name}}",
+    "developerExists": "👤 Identity already exists: {{name}} ({{file}}), skipped",
+    "tplInstalled": "✅ Installed {{dst}}",
+    "tplUpdated": "🔄 Updated {{dst}} (template upgraded)",
+    "tplSkipped": "⚠️  {{dst}} already exists and is locally customized, skipped (--force overwrites)",
+    "tplForced": "⚠️  Forced overwrite {{dst}} (local customizations replaced)",
+    "tplMissing": "❌ Template missing in package, cannot install: {{dst}}",
+    "commandsReady": "📂 Project skills ready"
+  },
+  "add": {
+    "desc": "Add task",
+    "estMinOption": "Estimated minutes",
+    "assigneeOption": "Assignee name (default: read .developer, fallback nightowl-user)",
+    "descOption": "Detailed task description",
+    "acceptanceOption": "Acceptance criteria (text)",
+    "dependsOnOption": "Dependent task id (repeatable)",
+    "verifyOption": "Verification command (repeatable)",
+    "slugOption": "PRD doc slug",
+    "taskGoal": "Task goal",
+    "taskExists": "❌ Task id {{id}} already exists",
+    "added": "➕ Added task {{id}} [{{prio}}] {{title}} (est. {{est}} min) owner {{assignee}}",
+    "ok": "✅ Added. Run nightowl status to view."
+  },
+  "status": {
+    "desc": "Show status",
+    "verboseOption": "Show blocked details",
+    "title": "📊 Task pool status ({{n}} tasks)",
+    "deps": " (depends: {{deps}})",
+    "taskLine": "  {{mark}} {{tid}} [{{prio}}] {{title}} est {{est}}min owner {{assignee}}{{deps}}",
+    "noAssignee": "unassigned",
+    "summary": "  Done: {{done}} | Blocked: {{blocked}}",
+    "skillsUnversioned": "💡 Project skills have no recorded source version (old init output); re-run nightowl init to fill it in",
+    "skillsOutdated": "💡 Project skills v{{installed}} < current package v{{latest}}; run nightowl init to re-install",
+    "blockedTitle": "\n🚫 Blocked details:"
+  },
+  "next": {
+    "desc": "Next task"
+  },
+  "done": {
+    "desc": "Mark done",
+    "actualMinArg": "Actual minutes spent",
+    "forceOption": "Skip review/test checks",
+    "alreadyDone": "⚠️  {{id}} already marked done, skipping",
+    "noReview": "❌ {{id}} has not been code-reviewed, refusing to mark done.",
+    "noReviewHint": "   Run nightowl review <id> --result PASS first, or use --force to skip",
+    "reviewFail": "❌ {{id}} code review failed (FAIL), refusing to mark done.",
+    "reviewFailHint": "   Re-review as PASS after fixing, or use --force to skip",
+    "noVerify": "❌ {{id}} has not passed verification (verify), refusing to mark done.",
+    "noVerifyHint": "   Run nightowl verify <id> first, or use --force to skip",
+    "completedLog": "✅ {{id}} done, took {{actual}} min",
+    "ok": "✅ {{id}} marked done"
+  },
+  "block": {
+    "desc": "Block task",
+    "log": "🚫 {{id}} blocked: {{reason}}",
+    "ok": "🚫 {{id}} marked blocked"
+  },
+  "schedule": {
+    "desc": "Set retry budget",
+    "retryOption": "Retry budget",
+    "ok": "⏰ Retry budget: {{retry}}"
+  },
+  "verify": {
+    "desc": "Run verification commands",
+    "failed": "❌ {{id}} verification command failed (exit code {{code}}): {{cmd}}"
+  },
+  "analyze": {
+    "desc": "Analyze project docs",
+    "title": "🔍 Project documentation analysis",
+    "contextTitle": "# Project Context",
+    "buildDeps": "- Build/deps: {{files}}",
+    "readmeSummary": "- README summary:",
+    "ciWorkflow": "- CI {{wf}}: {{body}}",
+    "ciFile": "- CI file: {{ci}}",
+    "contextLog": "[analyze] Project context: {{ctx}}",
+    "written": "💡 Project context written to {{file}}, implementing subagents read it before acting"
+  },
+  "review": {
+    "desc": "Record review result",
+    "levelOption": "Review level full/light",
+    "noteOption": "Review note",
+    "log": "🔍 Review {{id}}: {{result}} ({{level}}) {{note}}",
+    "ok": "✅ Review result recorded: {{result}}"
+  },
+  "sweep": {
+    "desc": "Sweep leftover worktrees"
+  },
+  "push": {
+    "desc": "Push unpushed commits",
+    "title": "🚀 Pushing unpushed commits",
+    "noRemote": "⚠️ No git remote configured, skipping push",
+    "nothing": "✅ No unpushed commits (branch: {{branch}})",
+    "unpushed": "📦 {{n}} unpushed commit(s):",
+    "ok": "✅ Pushed {{branch}}",
+    "log": "🚀 push origin {{branch}}",
+    "failed": "❌ Push failed:\n{{err}}"
+  },
+  "report": {
+    "desc": "Generate report",
+    "title": "# 📊 nightowl Report",
+    "generatedAt": "Generated: {{time}}",
+    "sectionOverview": "## Overview",
+    "tableHeader": "| Task | Owner | Priority | Est | Actual | Status |",
+    "tableRow": "| {{id}} | {{assignee}} | {{prio}} | {{est}}min | {{actual}} | {{status}} |",
+    "noAssignee": "—",
+    "sectionBlocked": "## Blocked Tasks",
+    "sectionReview": "## Review History",
+    "reviewLine": "- **{{id}}**: {{mark}} {{result}} — {{note}}",
+    "roundLine": "  - Round {{n}}: {{mark}} {{result}} — {{note}}",
+    "noNote": "(no note)",
+    "sectionGit": "## Git History",
+    "written": "📄 Report written to {{file}}"
+  },
+  "resume": {
+    "desc": "Resume from checkpoint",
+    "noCheckpoint": "📭 No checkpoint, nothing to resume",
+    "corrupt": "❌ Checkpoint data incomplete, check .nightowl/nightowl.checkpoint.yaml",
+    "log": "♻️ Resumed from checkpoint ({{completed}}/{{total}} done)",
+    "ok": "✅ Restored pool/state from checkpoint: {{completed}}/{{total}} done",
+    "inProgress": "   In progress: {{id}} (next will return it first)",
+    "noInProgress": "   No in-progress task, next will pick the next executable task"
+  },
+  "checkpoint": {
+    "desc": "Manage checkpoint",
+    "saved": "✅ Checkpoint saved ({{completed}}/{{total}})",
+    "savedLog": "💾 Checkpoint saved ({{completed}}/{{total}})",
+    "savedBlocked": "💾 Checkpoint saved (task blocked)",
+    "clearedAll": "🧹 All tasks done, checkpoint cleared",
+    "finalSaved": "💾 Final checkpoint saved ({{completed}}/{{total}})",
+    "none": "📭 No checkpoint",
+    "infoTitle": "📦 Checkpoint info:",
+    "updatedAt": "   Updated: {{at}}",
+    "unknown": "unknown",
+    "progress": "   Progress: {{completed}}/{{total}}",
+    "completed": "   Done: {{ids}}",
+    "blocked": "   Blocked: {{ids}}",
+    "noneList": "none",
+    "cleared": "✅ Checkpoint cleared",
+    "statusTitle": "📊 Checkpoint status:",
+    "statusProgress": "   Progress: {{completed}}/{{total}} ({{remaining}} remaining)",
+    "unknownAction": "❌ Unknown action: {{action}}(save/load/clear/status)"
+  },
+  "permissions": {
+    "scopeOption": "Permission write scope: project / local",
+    "setupDesc": "Add permissions",
+    "added": "✅ Added {{n}} permission rules to {{target}}:",
+    "already": "ℹ️ {{target}} already contains all nightowl permission rules, no change needed",
+    "reload": "💡 Reload: restart the session to apply; in Claude Code run /permissions to view",
+    "noninteractive": "💡 Run non-interactively in the run phase (no prompts at all): launch with permission-free mode per platform (Claude: `claude --dangerously-skip-permissions`; Codex: `codex exec --full-auto`)",
+    "hookInstalled": "🔧 PreToolUse hook configured (records permission mode to .nightowl/.permission-mode): {{target}}"
+  },
+  "selfcheck": {
+    "desc": "Check current session permission mode (bypass detection)",
+    "bypass": "✅ Permission mode is bypass: run can execute silently.",
+    "notBypass": "⚠️ Permission mode is not bypass ({{mode}}): run needs a permission-free launch (`{{cmd}}`), or switch to bypass and restart the session so the hook records it.",
+    "unknown": "❓ Cannot detect permission mode (no hook, no process signal). Run `nightowl init` to install the PreToolUse hook and restart, or launch in permission-free mode per platform."
+  },
+  "supervise": {
+    "desc": "Unattended main-session driver: repeatedly launches claude to continue run, exits when the pool completes",
+    "intervalSecOption": "seconds between rounds (default 10)",
+    "timeoutMinOption": "per-round main-session timeout in minutes (default 30)",
+    "maxIdleOption": "consecutive idle-round limit (default 3, stop when reached)",
+    "onceOption": "run exactly one round then exit",
+    "noHeadless": "❌ Platform {{platform}} does not support unattended driving yet (headlessRun not implemented)",
+    "done": "✅ run complete: {{done}}/{{total}} tasks done, exiting",
+    "doneBlocked": "✅ run complete: {{done}}/{{total}} tasks done ({{n}} blocked), exiting",
+    "deadlock": "⚠️ {{n}} tasks left unschedulable (dependencies unmet), run not complete (check deps/blocked tasks), exiting",
+    "finalizeRound": "🧹 All business tasks done but report not written yet, launching a finalize round to generate it",
+    "finalizeFail": "  ⚠️ Finalize round failed, report may be missing (run nightowl report to fill it)",
+    "onceStop": "⏹ --once: ran one round, exiting",
+    "roundStart": "🔄 Round {{round}}: driving main session ({{remaining}} tasks left)",
+    "fallback": "  ↪ --continue failed, falling back to a fresh session without --continue",
+    "blockFail": "❌ Session failed {{attempt}} rounds in a row, blocking task {{id}}",
+    "blockReason": "supervise session failed {{attempt}} rounds in a row",
+    "retry": "  ⏳ Session failed, retrying with {{wait}}s backoff (attempt {{attempt}})",
+    "idleStop": "⏹ No progress for {{n}} consecutive rounds, stopping (if a task is mid-implementation, raise --max-idle or rerun supervise to resume)",
+    "idle": "  🕐 This round made no progress ({{idleRounds}}/{{maxIdle}} idle rounds)"
+  }
+}

@@ -1,0 +1,35 @@
+# ============================================================
+# task-pool.yaml — plan 阶段填写
+# 只写:做什么/多重要/大致多久
+# ============================================================
+
+schedule:
+  retry_budget: 2            # 每个任务最多自动 retry 次数
+
+checkpoint:
+  enabled: true              # 是否启用 checkpoint
+  write_every: 2             # 每完成 N 个任务写一次 checkpoint
+
+pool:
+  # P0 = 必做 | P1 = 重要 | P2 = 可选
+  - id: "T1"
+    title: "描述第一个任务"
+    priority: "P0"
+    est_min: 15              # 估算分钟数(允许不准)
+    depends_on: []           # 依赖的任务,如 ["T0"]
+    status: "pending"
+    verify:                  # 验收命令(可选),全部通过才算完成
+      # ⚠️ 以下为占位示例,必须按项目实际技术栈替换:
+      #    先看 package.json / README / `nightowl analyze` 结果确定测试命令,
+      #    不要照搬。Node/TS 项目示例:`npm test` / `npx tsc --noEmit`。
+      - "test -f path/to/file"
+      - "npm test"
+
+  - id: "T2"
+    title: "描述第二个任务"
+    priority: "P1"
+    est_min: 25
+    depends_on: ["T1"]
+    status: "pending"
+    verify:
+      - "npm test"

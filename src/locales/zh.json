@@ -1,0 +1,204 @@
+{
+  "cli": {
+    "description": "自主调度技能:plan 交互式分析需求 → run 静默执行 → report 收尾汇总",
+    "dirOption": "项目根目录(默认当前目录)"
+  },
+  "common": {
+    "noPool": "❌ 没有任务池,请先运行 nightowl init",
+    "taskNotFound": "❌ 找不到任务 {{id}}"
+  },
+  "init": {
+    "desc": "项目级初始化(任务池 + 权限 + 技能)",
+    "userOption": "开发者身份名(写入 .nightowl/.developer)",
+    "claudeOption": "Claude Code 平台(快捷别名)",
+    "codexOption": "Codex 平台(快捷别名)",
+    "platformOption": "目标 agent 平台(claude/codex,默认 claude)",
+    "scopeOption": "权限写入范围: project / local",
+    "skipPermissionsOption": "跳过权限申请,只初始化任务池",
+    "forceOption": "覆盖被本地定制的技能文件",
+    "alreadyExists": "⚠️  {{file}} 已存在,跳过初始化。",
+    "ok": "🌙 nightowl 初始化完成",
+    "skippedPermissions": "⏭️  已跳过权限申请(--skip-permissions)",
+    "howToAdd": "📋 用以下命令添加任务:",
+    "howToAddCmd": "  nightowl add --id T1 --title \"...\" --priority P0 --est-min 15",
+    "howToAddExtra": "  可加 --depends-on T0 --verify \"cmd\"",
+    "viewStatus": "  查看: nightowl status",
+    "developerWritten": "👤 身份已写入 {{file}}: {{name}}",
+    "developerExists": "👤 身份已存在: {{name}}({{file}}),跳过写入",
+    "tplInstalled": "✅ 已安装 {{dst}}",
+    "tplUpdated": "🔄 已更新 {{dst}}(模板升级)",
+    "tplSkipped": "⚠️  {{dst}} 已存在且被本地定制,跳过(--force 覆盖)",
+    "tplForced": "⚠️ 已强制覆盖 {{dst}}(本地定制已被替换)",
+    "tplMissing": "❌ 包内模板缺失,无法铺入: {{dst}}",
+    "commandsReady": "📂 项目级技能就绪"
+  },
+  "add": {
+    "desc": "加任务",
+    "estMinOption": "预估分钟数",
+    "assigneeOption": "负责人名(默认读 .developer,无则 nightowl-user)",
+    "descOption": "任务详细描述",
+    "acceptanceOption": "验收标准(文字)",
+    "dependsOnOption": "依赖的任务 id(可多次)",
+    "verifyOption": "验收命令(可多次)",
+    "slugOption": "PRD 文档 slug",
+    "taskGoal": "任务目标",
+    "taskExists": "❌ 任务 id {{id}} 已存在",
+    "added": "➕ 添加任务 {{id}} [{{prio}}] {{title}} (估值 {{est}} 分) 负责人{{assignee}}",
+    "ok": "✅ 已添加。运行 nightowl status 查看。"
+  },
+  "status": {
+    "desc": "看状态",
+    "verboseOption": "显示阻塞详情",
+    "title": "📊 任务池状态 ({{n}} 个任务)",
+    "deps": " (依赖: {{deps}})",
+    "taskLine": "  {{mark}} {{tid}} [{{prio}}] {{title}} 估值{{est}}分 负责人{{assignee}}{{deps}}",
+    "noAssignee": "未指派",
+    "summary": "  已完成: {{done}} | 阻塞: {{blocked}}",
+    "skillsUnversioned": "💡 项目技能未记录来源版本(旧版 init 产物),重跑 nightowl init 将补齐",
+    "skillsOutdated": "💡 项目技能 v{{installed}} < 当前包 v{{latest}},运行 nightowl init 重铺",
+    "blockedTitle": "\n🚫 阻塞详情:"
+  },
+  "next": {
+    "desc": "下一个任务"
+  },
+  "done": {
+    "desc": "完成",
+    "actualMinArg": "实际用时分钟",
+    "forceOption": "跳过审查/测试校验",
+    "alreadyDone": "⚠️  {{id}} 已标记完成,跳过",
+    "noReview": "❌ {{id}} 尚未代码审查,拒绝标记完成。",
+    "noReviewHint": "   先运行 nightowl review <id> --result PASS,或用 --force 跳过",
+    "reviewFail": "❌ {{id}} 代码审查未通过(FAIL),拒绝标记完成。",
+    "reviewFailHint": "   修复后重新审查为 PASS,或用 --force 跳过",
+    "noVerify": "❌ {{id}} 尚未通过验收测试(verify),拒绝标记完成。",
+    "noVerifyHint": "   先运行 nightowl verify <id>,或用 --force 跳过",
+    "completedLog": "✅ {{id}} 完成,实际用时 {{actual}} 分",
+    "ok": "✅ {{id}} 已标记完成"
+  },
+  "block": {
+    "desc": "阻塞",
+    "log": "🚫 {{id}} 阻塞: {{reason}}",
+    "ok": "🚫 {{id}} 已标记阻塞"
+  },
+  "schedule": {
+    "desc": "设置重试预算",
+    "retryOption": "retry 预算",
+    "ok": "⏰ retry 预算: {{retry}}"
+  },
+  "verify": {
+    "desc": "跑验收命令",
+    "failed": "❌ {{id}} 验收命令失败(退出码 {{code}}): {{cmd}}"
+  },
+  "analyze": {
+    "desc": "项目文档分析",
+    "title": "🔍 项目文档分析",
+    "contextTitle": "# 项目上下文",
+    "buildDeps": "- 构建/依赖: {{files}}",
+    "readmeSummary": "- README 摘要:",
+    "ciWorkflow": "- CI {{wf}}: {{body}}",
+    "ciFile": "- CI 文件: {{ci}}",
+    "contextLog": "[分析] 项目上下文: {{ctx}}",
+    "written": "💡 项目上下文已写入 {{file}},实现子代理先 Read 它再动手"
+  },
+  "review": {
+    "desc": "记录审查结果",
+    "levelOption": "审查级别 full/light",
+    "noteOption": "审查备注",
+    "log": "🔍 审查 {{id}}: {{result}} ({{level}}) {{note}}",
+    "ok": "✅ 审查结果已记录: {{result}}"
+  },
+  "sweep": {
+    "desc": "清查残留 worktree"
+  },
+  "push": {
+    "desc": "推送未推送的 commit",
+    "title": "🚀 推送未推送的 commit",
+    "noRemote": "⚠️ 没有配置 git remote,跳过推送",
+    "nothing": "✅ 没有未推送的 commit(branch: {{branch}})",
+    "unpushed": "📦 未推送 {{n}} 个 commit:",
+    "ok": "✅ 已推送 {{branch}}",
+    "log": "🚀 push origin {{branch}}",
+    "failed": "❌ 推送失败:\n{{err}}"
+  },
+  "report": {
+    "desc": "生成报告",
+    "title": "# 📊 nightowl 报告",
+    "generatedAt": "生成时间: {{time}}",
+    "sectionOverview": "## 任务总览",
+    "tableHeader": "| 任务 | 负责人 | 优先级 | 估值 | 实际 | 状态 |",
+    "tableRow": "| {{id}} | {{assignee}} | {{prio}} | {{est}} 分 | {{actual}} | {{status}} |",
+    "noAssignee": "—",
+    "sectionBlocked": "## 阻塞任务",
+    "sectionReview": "## 审查过程",
+    "reviewLine": "- **{{id}}**: {{mark}} {{result}} — {{note}}",
+    "roundLine": "  - 第 {{n}} 轮: {{mark}} {{result}} — {{note}}",
+    "noNote": "(无备注)",
+    "sectionGit": "## git 历史",
+    "written": "📄 报告已写入 {{file}}"
+  },
+  "resume": {
+    "desc": "从 checkpoint 恢复",
+    "noCheckpoint": "📭 没有 checkpoint,无需恢复",
+    "corrupt": "❌ checkpoint 数据不完整,请检查 .nightowl/nightowl.checkpoint.yaml",
+    "log": "♻️ 从 checkpoint 恢复 ({{completed}}/{{total}} 完成)",
+    "ok": "✅ 已从 checkpoint 恢复 pool/state: {{completed}}/{{total}} 完成",
+    "inProgress": "   进行中: {{id}} (next 会优先返回它)",
+    "noInProgress": "   无进行中任务,next 会选下一个可执行任务"
+  },
+  "checkpoint": {
+    "desc": "管理 checkpoint",
+    "saved": "✅ checkpoint 已保存 ({{completed}}/{{total}})",
+    "savedLog": "💾 checkpoint 已保存 ({{completed}}/{{total}})",
+    "savedBlocked": "💾 checkpoint 已保存 (任务阻塞)",
+    "clearedAll": "🧹 全部任务完成,checkpoint 已清理",
+    "finalSaved": "💾 最终 checkpoint 已保存 ({{completed}}/{{total}})",
+    "none": "📭 没有 checkpoint",
+    "infoTitle": "📦 checkpoint 信息:",
+    "updatedAt": "   更新时间: {{at}}",
+    "unknown": "未知",
+    "progress": "   进度: {{completed}}/{{total}}",
+    "completed": "   已完成: {{ids}}",
+    "blocked": "   阻塞: {{ids}}",
+    "noneList": "无",
+    "cleared": "✅ checkpoint 已清理",
+    "statusTitle": "📊 checkpoint 状态:",
+    "statusProgress": "   进度: {{completed}}/{{total}} (剩余 {{remaining}})",
+    "unknownAction": "❌ 未知动作: {{action}}(save/load/clear/status)"
+  },
+  "permissions": {
+    "scopeOption": "权限写入范围: project / local",
+    "setupDesc": "补权限",
+    "added": "✅ 已添加 {{n}} 条权限规则到 {{target}}:",
+    "already": "ℹ️ {{target}} 已包含全部 nightowl 权限规则,无需改动",
+    "reload": "💡 重新加载:重启会话生效;Claude Code 可在会话里运行 /permissions 查看",
+    "noninteractive": "💡 run 阶段无交互运行(彻底免弹窗):按平台以无权限确认模式启动(Claude: `claude --dangerously-skip-permissions`;Codex: `codex exec --full-auto`)",
+    "hookInstalled": "🔧 已配置 PreToolUse hook(记录权限模式到 .nightowl/.permission-mode): {{target}}"
+  },
+  "selfcheck": {
+    "desc": "检查当前会话权限模式(bypass 检测)",
+    "bypass": "✅ 权限模式 bypass:run 可静默执行。",
+    "notBypass": "⚠️ 权限模式非 bypass({{mode}}):run 需以无权限确认模式启动(`{{cmd}}`),或切到 bypass 后重启会话让 hook 记录。",
+    "unknown": "❓ 无法检测权限模式(未装 hook 也无进程信号)。请先 `nightowl init` 装 PreToolUse hook 并重启会话,或按平台以无权限确认模式启动。"
+  },
+  "supervise": {
+    "desc": "无人值守驱动主会话:循环拉起 claude 延续 run,任务池完成自动退出",
+    "intervalSecOption": "轮间间隔秒数(默认 10)",
+    "timeoutMinOption": "单轮主会话超时分钟数(默认 30)",
+    "maxIdleOption": "连续空转轮数上限(默认 3,达到即停)",
+    "onceOption": "只跑一轮就退出",
+    "noHeadless": "❌ 平台 {{platform}} 暂不支持无人值守(headlessRun 未实现)",
+    "done": "✅ run 完成:{{done}}/{{total}} 个任务已完成,退出",
+    "doneBlocked": "✅ run 完成:{{done}}/{{total}} 个任务已完成(含 {{n}} 个阻塞),退出",
+    "deadlock": "⚠️ 剩余 {{n}} 个任务依赖未满足无法调度,run 未完成(检查依赖/阻塞任务),退出",
+    "finalizeRound": "🧹 业务任务已全部完成但报告未落盘,拉起收尾轮生成报告",
+    "finalizeFail": "  ⚠️ 收尾轮失败,报告可能未生成(可手动运行 nightowl report 补齐)",
+    "onceStop": "⏹ --once:已跑一轮,退出",
+    "roundStart": "🔄 第 {{round}} 轮:驱动主会话(剩余 {{remaining}} 个任务)",
+    "fallback": "  ↪ --continue 失败,回退去掉 --continue 新开会话",
+    "blockFail": "❌ 会话连续 {{attempt}} 轮失败,阻塞任务 {{id}}",
+    "blockReason": "supervise 连续 {{attempt}} 轮会话失败",
+    "retry": "  ⏳ 会话失败,{{wait}}s 后退避重试(第 {{attempt}} 次)",
+    "idleStop": "⏹ 连续 {{n}} 轮无进展,停止(若任务在实现中,可调大 --max-idle 或重跑 supervise 续跑)",
+    "idle": "  🕐 本轮无进展(连续 {{idleRounds}}/{{maxIdle}} 轮)"
+  }
+}
