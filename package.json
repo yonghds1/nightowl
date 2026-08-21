@@ -1,6 +1,6 @@
 {
   "name": "@yonghds1/nightowl",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Nightowl - plan 规划任务 / run 静默修改 / report 收尾汇总的 Claude Code 调度技能",
   "type": "module",
   "main": "./dist/cli.js",
