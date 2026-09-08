@@ -4,6 +4,19 @@
 
 自主调度技能：**plan** 交互式分析需求 → **run** 静默执行 → **report** 收尾汇总。把大需求拆成可执行的任务池，run 阶段无交互地跑完，收尾给你一份报告。
 
+多 agent 宿主支持：**Claude Code / Codex / OpenCode / Antigravity CLI**（`nightowl init --<平台>`）。业务核心宿主无关，仅技能铺入路径、权限模型、子代理派发、headless 驱动按平台适配。
+
+## 平台支持
+
+| 平台 | init 别名 | 技能铺入 | 静默/权限 | headless（supervise） | 状态 |
+|------|-----------|----------|-----------|----------------------|------|
+| Claude Code | `--claude`（默认） | `.claude/skills/` | settings.json allow + PreToolUse hook | `claude -p --continue` | ✅ 已实战 |
+| Codex | `--codex` | `.agents/skills/` | `.codex/config.toml`（never+workspace-write+网络）+ hooks.json | `codex exec resume --last` | 🧪 按文档实现，未实机验证 |
+| OpenCode | `--opencode` | `.agents/skills/` | `opencode.json` permission 规则 | `opencode run --auto --continue` | 🧪 按文档实现，未实机验证 |
+| Antigravity CLI | `--antigravity` | `.agents/skills/` + `.agents/agents/` | 全局 `~/.gemini/antigravity-cli/settings.json` allow | `agy -p --dangerously-skip-permissions --continue` | 🧪 按文档实现，未实机验证 |
+
+> Codex/OpenCode/Antigravity 共享 `.agents/skills/`（跨 agent 标准目录），一次铺入三家可读。技能正文宿主无关，`init` 按平台渲染差异段（子代理派发、提问工具、启动命令）。规划与机制调研见 [`docs/multi-agent-plan.md`](docs/multi-agent-plan.md)。
+
 ## 安装
 
 ```bash
@@ -28,9 +41,9 @@ NIGHTOWL_LANG=en nightowl --help
 ## 快速开始
 
 ```bash
-# 1. 项目级初始化：建 .nightowl/ 任务池 + 申请权限 + 铺技能到 .claude/
+# 1. 项目级初始化：建 .nightowl/ 任务池 + 申请权限 + 按平台铺技能
 #    -u <你的名字> 写入开发者身份 (.nightowl/.developer)
-#    --claude 指定 claude 平台；--codex 或 --platform codex 用 codex
+#    平台别名：--claude(默认) / --codex / --opencode / --antigravity；或 --platform <id>
 nightowl init -u <你的名字> --claude
 
 # 2. 拆任务（自动生成 PRD 文档）
@@ -47,7 +60,7 @@ nightowl status
 
 ### plan —— 交互式分析需求
 
-- `nightowl init -u <你的名字> --claude` 项目级初始化：建 `.nightowl/` 任务池 + 自动申请权限 + 铺技能到 `.claude/skills/nightowl-*`（全部进 git，clone 后即用）；`--scope local` 权限只对本机生效，`--skip-permissions` 跳过权限申请。技能版本落后当前包时 `nightowl status` 会提示，重跑 `init` 重铺
+- `nightowl init -u <你的名字> --<平台>` 项目级初始化：建 `.nightowl/` 任务池 + 自动申请权限 + 按平台铺技能（Claude → `.claude/skills/`；Codex/OpenCode/Antigravity → `.agents/skills/`，全部进 git，clone 后即用）；`--scope local` 权限只对本机生效，`--skip-permissions` 跳过权限申请。技能版本落后当前包时 `nightowl status` 会提示，重跑 `init` 重铺
 - `nightowl analyze` 分析项目上下文，生成 `.nightowl/nightowl.context.md`（技术栈/入口/测试命令/CI，run 阶段实现子代理先读它）
 - `nightowl add` 加任务，字段：`--id --title --priority --est-min --assignee --desc --acceptance --depends-on --verify --slug`
 - `nightowl status` 看任务池
@@ -63,7 +76,7 @@ nightowl status
 - `nightowl sweep` 清查残留 worktree（中断续跑先回收半成品）
 - `nightowl push` 推送未推送的 commit（`PUSH_OK` / `PUSH_NOTHING` / `PUSH_SKIPPED_NO_REMOTE`）
 
-**无人值守**：run 阶段可用 `nightowl supervise` 作为驱动引擎替代手动循环——反复拉起 `claude -p --continue` 延续主会话推进任务池，**任务池全部完成自动退出**（报告未落盘会自动拉起收尾轮兜底，退出即 run 完整结束）；中断后再启动即从断点续（`--continue` 续接 + resume 幂等，不重复实现已完成任务）。常用 `--interval-sec` / `--timeout-min` / `--max-idle`，调试用 `--once`。
+**无人值守**：run 阶段可用 `nightowl supervise` 作为驱动引擎替代手动循环——按平台反复拉起宿主 headless 会话（Claude `claude -p --continue`、Codex `codex exec resume --last`、OpenCode `opencode run --auto --continue`、Antigravity `agy -p --dangerously-skip-permissions --continue`）延续主会话推进任务池，**任务池全部完成自动退出**（报告未落盘会自动拉起收尾轮兜底，退出即 run 完整结束）；中断后再启动即从断点续（续接 + resume 幂等，不重复实现已完成任务）。常用 `--interval-sec` / `--timeout-min` / `--max-idle`，调试用 `--once`。
 
 ### report —— 收尾汇总（run 后默认执行）
 
@@ -75,7 +88,7 @@ nightowl status
 
 | 命令 | 说明 |
 |------|------|
-| `init` | 项目级初始化：任务池 + 权限 + 技能（`-u <名字> --claude`） |
+| `init` | 项目级初始化：任务池 + 权限 + 技能（`-u <名字> --<平台>`） |
 | `add` | 加任务 |
 | `status` | 看状态 |
 | `next` | 下一个任务 |
@@ -91,13 +104,15 @@ nightowl status
 | `resume` | 崩溃续跑 |
 | `checkpoint` | checkpoint 管理 |
 | `setup-permissions` | 补权限 |
-| `supervise` | 无人值守驱动主会话（循环拉起 claude 延续 run，任务池完成退出） |
+| `supervise` | 无人值守驱动主会话（按平台循环拉起宿主 headless 延续 run，任务池完成退出） |
 
 ## 项目级技能
 
 `nightowl init` 会把技能按项目铺入（trellis 式，进 git，clone 后即用）：
 
-- 技能 → `.claude/skills/nightowl-plan/`、`nightowl-run/`、`nightowl-report/`
+- 技能 → Claude：`.claude/skills/nightowl-{plan,run,report}/`；Codex/OpenCode/Antigravity：`.agents/skills/nightowl-{plan,run,report}/`（跨 agent 共享目录）
+- Antigravity 额外铺子代理定义 `.agents/agents/nightowl-{implementer,reviewer}.md`（供 `invoke_subagent` 调用）
+- 技能正文宿主无关，`init` 按平台把 `{{PLATFORM_*}}` 占位符渲染成对应平台的子代理派发/提问/启动方式（切换平台后重跑 `init` 即重铺为当前平台的渲染产物）
 - 模板 hash 记录在 `.nightowl/.template-hashes.json`：记录每个铺入文件的 hash + 技能来源版本戳。包升级后再次 `nightowl init` 自动更新未定制的文件；被本地定制过的跳过（`--force` 覆盖）。`nightowl status` 检测项目技能版本落后当前包时提示重跑 `init`
 - 身份 → `.nightowl/.developer`（`-u` 写入，建议加入 .gitignore）
 

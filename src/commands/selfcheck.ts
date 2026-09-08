@@ -23,7 +23,7 @@ export function createSelfcheckCommand(): Command {
     .description(t('selfcheck.desc'))
     .action(() => {
       const hook = readPermissionMode();
-      // 进程兜底按平台分发(claude: CLAUDE_PID + --dangerously;codex: CODEX_PID + --full-auto)
+      // 进程兜底按平台分发(claude: CLAUDE_PID + --dangerously;codex: CODEX_PID + bypass 标志)
       const platform = resolvePlatform(undefined, process.cwd());
       let bypass: boolean | null;
       if (hook !== null) {

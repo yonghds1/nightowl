@@ -12,7 +12,9 @@
     "userOption": "开发者身份名(写入 .nightowl/.developer)",
     "claudeOption": "Claude Code 平台(快捷别名)",
     "codexOption": "Codex 平台(快捷别名)",
-    "platformOption": "目标 agent 平台(claude/codex,默认 claude)",
+    "opencodeOption": "OpenCode 平台(快捷别名)",
+    "antigravityOption": "Antigravity CLI 平台(快捷别名)",
+    "platformOption": "目标 agent 平台(claude/codex/opencode/antigravity,默认 claude)",
     "scopeOption": "权限写入范围: project / local",
     "skipPermissionsOption": "跳过权限申请,只初始化任务池",
     "forceOption": "覆盖被本地定制的技能文件",
@@ -170,8 +172,8 @@
     "setupDesc": "补权限",
     "added": "✅ 已添加 {{n}} 条权限规则到 {{target}}:",
     "already": "ℹ️ {{target}} 已包含全部 nightowl 权限规则,无需改动",
-    "reload": "💡 重新加载:重启会话生效;Claude Code 可在会话里运行 /permissions 查看",
-    "noninteractive": "💡 run 阶段无交互运行(彻底免弹窗):按平台以无权限确认模式启动(Claude: `claude --dangerously-skip-permissions`;Codex: `codex exec --full-auto`)",
+    "reload": "💡 重新加载:重启会话生效",
+    "noninteractive": "💡 run 阶段无交互运行(彻底免弹窗):以无权限确认模式启动:{{cmd}}",
     "hookInstalled": "🔧 已配置 PreToolUse hook(记录权限模式到 .nightowl/.permission-mode): {{target}}"
   },
   "selfcheck": {
@@ -181,7 +183,7 @@
     "unknown": "❓ 无法检测权限模式(未装 hook 也无进程信号)。请先 `nightowl init` 装 PreToolUse hook 并重启会话,或按平台以无权限确认模式启动。"
   },
   "supervise": {
-    "desc": "无人值守驱动主会话:循环拉起 claude 延续 run,任务池完成自动退出",
+    "desc": "无人值守驱动主会话:循环拉起宿主 headless 会话延续 run,任务池完成自动退出",
     "intervalSecOption": "轮间间隔秒数(默认 10)",
     "timeoutMinOption": "单轮主会话超时分钟数(默认 30)",
     "maxIdleOption": "连续空转轮数上限(默认 3,达到即停)",

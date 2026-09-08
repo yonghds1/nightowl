@@ -3,6 +3,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { pkgRoot } from '../paths.js';
 import { installFile } from '../commands/install.js';
+import { renderTemplate } from './render.js';
 import type { InstallItem, PermissionsResult, Platform } from './types.js';
 
 const SKILLS = ['nightowl-plan', 'nightowl-run', 'nightowl-report'];
@@ -88,6 +89,20 @@ function hasPermissionModeHook(hooksArr: unknown): boolean {
   });
 }
 
+// Claude 平台占位符变量:技能正文的 {{PLATFORM_*}} 铺入时按此渲染。
+// 提取为独立函数供 installTemplates 与导出的 claude 对象共用。
+const CLAUDE_TEMPLATE_VARS: Record<string, string> = {
+  PLATFORM_ASK: '用 AskUserQuestion 工具提问,绝不用纯文本提问',
+  PLATFORM_RELAUNCH: '`claude --dangerously-skip-permissions`',
+  PLATFORM_HEADLESS: '`claude -p --continue --dangerously-skip-permissions --append-system-prompt <续跑指令>`',
+  PLATFORM_SUBAGENT_D:
+    'Agent 工具,subagent_type="general-purpose",\n       mode="bypassPermissions" (所有操作自动确认),isolation="worktree"',
+  PLATFORM_SUBAGENT_CALL:
+    'Agent 工具调用参数:\n- subagent_type: "general-purpose"\n- mode: "bypassPermissions"\n- isolation: "worktree"',
+  PLATFORM_SUBAGENT_DIR: '- 目录范围: 当前工作区(项目根目录及其所有子目录)',
+  PLATFORM_PUSH_MODE: '仅 bypass 下静默 push',
+};
+
 function installTemplates(
   projectRoot: string,
   hashRec: Record<string, string>,
@@ -95,12 +110,13 @@ function installTemplates(
 ): InstallItem[] {
   const results: InstallItem[] = [];
   const skillsSrc = path.join(pkgRoot(), 'skills');
+  const render = renderTemplate(CLAUDE_TEMPLATE_VARS);
   for (const name of SKILLS) {
     const key = path.join('.claude', 'skills', name, 'SKILL.md');
     const dst = path.join(projectRoot, key);
     results.push({
       key,
-      status: installFile(path.join(skillsSrc, name, 'SKILL.md'), dst, hashRec, key, force),
+      status: installFile(path.join(skillsSrc, name, 'SKILL.md'), dst, hashRec, key, force, render),
     });
   }
   // PreToolUse hook 脚本(记录权限模式,供 selfcheck 读取);放 .claude/ 下随项目入库
@@ -193,6 +209,9 @@ export const claude: Platform = {
   id: 'claude',
   name: 'Claude Code',
   configDir: '.claude',
+  templateVars() {
+    return CLAUDE_TEMPLATE_VARS;
+  },
   installTemplates,
   writePermissions: applyPermissions,
   detectBypass,

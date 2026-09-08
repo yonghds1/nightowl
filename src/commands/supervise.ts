@@ -12,7 +12,7 @@ import { t } from '../i18n.js';
 
 // 无人值守续跑指令:精简版,主会话会读 nightowl-run skill 拿完整流程。
 // 每轮 spawn 都注入,让模型知道这是 supervise 拉起的续跑轮次。
-export const SUPERVISOR_PROMPT = `你是 nightowl 无人值守调度会话。本会话延续上次主会话(--continue)。
+export const SUPERVISOR_PROMPT = `你是 nightowl 无人值守调度会话。本会话续接上次主会话(supervise 已按平台注入续接参数)。
 按 nightowl-run 技能继续推进任务池:先 nightowl status 看进度,再进入调度循环
 (sweep → next → 实现/审查子会话 → verify → 合并 → done)。
 本轮尽可能推进,但当判断该停了(上下文接近上限/无待办/无法推进)就正常结束本轮。

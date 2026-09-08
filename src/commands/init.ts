@@ -5,7 +5,7 @@ import { LOG_FILE, POOL_FILE, PLATFORM_FILE, ensureBaseDir, getBaseDir, getPkgVe
 import { savePool, saveState, log, type AppState, type Pool } from '../state.js';
 import { printPermissionsResult } from './permissions.js';
 import { t } from '../i18n.js';
-import { resolvePlatform } from '../platforms/index.js';
+import { resolvePlatform, platformFromFlags } from '../platforms/index.js';
 import type { Platform } from '../platforms/types.js';
 
 export const DEFAULT_RETRY_BUDGET = 2;
@@ -66,6 +66,8 @@ export function createInitCommand(): Command {
     .option('-u, --user <name>', t('init.userOption'))
     .option('--claude', t('init.claudeOption'))
     .option('--codex', t('init.codexOption'))
+    .option('--opencode', t('init.opencodeOption'))
+    .option('--antigravity', t('init.antigravityOption'))
     .option('--platform <id>', t('init.platformOption'))
     .option('--scope <scope>', t('init.scopeOption'), 'project')
     .option('--skip-permissions', t('init.skipPermissionsOption'))
@@ -76,12 +78,14 @@ export function createInitCommand(): Command {
       user?: string;
       claude?: boolean;
       codex?: boolean;
+      opencode?: boolean;
+      antigravity?: boolean;
       platform?: string;
       force: boolean;
     }) => {
       const projectRoot = path.dirname(getBaseDir());
       const platform = resolvePlatform(
-        opts.platform ?? (opts.claude ? 'claude' : opts.codex ? 'codex' : undefined),
+        opts.platform ?? platformFromFlags(opts),
         projectRoot,
       );
 
@@ -119,7 +123,7 @@ export function createInitCommand(): Command {
       if (opts.skipPermissions) {
         console.log(t('init.skippedPermissions'));
       } else {
-        printPermissionsResult(platform.writePermissions(projectRoot, opts.scope as 'project' | 'local'));
+        printPermissionsResult(platform.writePermissions(projectRoot, opts.scope as 'project' | 'local'), platform.nonInteractiveCmd);
       }
 
       ensureDeveloper(opts.user);

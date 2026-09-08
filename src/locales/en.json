@@ -12,7 +12,9 @@
     "userOption": "Developer identity name (written to .nightowl/.developer)",
     "claudeOption": "Claude Code platform (shortcut alias)",
     "codexOption": "Codex platform (shortcut alias)",
-    "platformOption": "Target agent platform (claude/codex, default claude)",
+    "opencodeOption": "OpenCode platform (shortcut alias)",
+    "antigravityOption": "Antigravity CLI platform (shortcut alias)",
+    "platformOption": "Target agent platform (claude/codex/opencode/antigravity, default claude)",
     "scopeOption": "Permission write scope: project / local",
     "skipPermissionsOption": "Skip permission request, only initialize task pool",
     "forceOption": "Overwrite locally-customized skill files",
@@ -170,8 +172,8 @@
     "setupDesc": "Add permissions",
     "added": "✅ Added {{n}} permission rules to {{target}}:",
     "already": "ℹ️ {{target}} already contains all nightowl permission rules, no change needed",
-    "reload": "💡 Reload: restart the session to apply; in Claude Code run /permissions to view",
-    "noninteractive": "💡 Run non-interactively in the run phase (no prompts at all): launch with permission-free mode per platform (Claude: `claude --dangerously-skip-permissions`; Codex: `codex exec --full-auto`)",
+    "reload": "💡 Reload: restart the session to apply",
+    "noninteractive": "💡 Run non-interactively in the run phase (no prompts at all): launch with permission-free mode: {{cmd}}",
     "hookInstalled": "🔧 PreToolUse hook configured (records permission mode to .nightowl/.permission-mode): {{target}}"
   },
   "selfcheck": {
@@ -181,7 +183,7 @@
     "unknown": "❓ Cannot detect permission mode (no hook, no process signal). Run `nightowl init` to install the PreToolUse hook and restart, or launch in permission-free mode per platform."
   },
   "supervise": {
-    "desc": "Unattended main-session driver: repeatedly launches claude to continue run, exits when the pool completes",
+    "desc": "Unattended main-session driver: repeatedly launches the host headless session to continue run, exits when the pool completes",
     "intervalSecOption": "seconds between rounds (default 10)",
     "timeoutMinOption": "per-round main-session timeout in minutes (default 30)",
     "maxIdleOption": "consecutive idle-round limit (default 3, stop when reached)",

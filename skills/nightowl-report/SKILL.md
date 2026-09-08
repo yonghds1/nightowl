@@ -78,5 +78,5 @@ git log:
 | 报告跟 git log 对不上 | 说"报告不对",对账 |
 | 想全手动 | 说"今天我自己来",只帮写命令 |
 | 中途断了想恢复 | 说"继续上一轮",自动从 checkpoint 恢复 |
-| 频繁弹权限确认 | 首次运行 `nightowl setup-permissions`;run 会话按平台以无权限确认模式启动(Claude `claude --dangerously-skip-permissions`;Codex `codex exec --full-auto`) |
+| 频繁弹权限确认 | 首次运行 `nightowl setup-permissions`;run 会话以无权限确认模式启动(命令见 nightowl-run 铺入版本的平台适配段) |
 | checkpoint 损坏 | 删除 `.nightowl/checkpoint.yaml*` 重新开始 |

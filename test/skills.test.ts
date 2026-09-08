@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Command } from 'commander';
 import { pkgRoot } from '../src/paths.js';
+import { claude, codex } from '../src/platforms/index.js';
 import { COMMAND_FACTORIES } from '../src/commands/registry.js';
 
 const DOC_FILES = [
@@ -115,9 +116,20 @@ describe('SKILL/模板选项引用 ⊆ 真实 CLI 选项', () => {
     });
   }
 
-  it('run 提示文案保留两平台无交互启动参数', () => {
+  it('技能正文宿主无关:占位符存在且各平台 templateVars 渲染无残留', () => {
     const text = docText();
-    for (const flag of HOST_FLAGS) expect(text, `文档缺少宿主启动参数 ${flag}`).toContain(flag);
+    // 无交互启动参数已抽成占位符,正文不再硬编码 Claude/Codex 命令
+    expect(text).toContain('{{PLATFORM_RELAUNCH}}');
+    expect(text).toContain('{{PLATFORM_SUBAGENT_CALL}}');
+    expect(text).not.toContain('--full-auto');
+    // 每个平台渲染后不留未替换占位,且填出真实启动命令
+    for (const platform of [claude, codex]) {
+      const vars = platform.templateVars(process.cwd());
+      const rendered = text.replace(/\{\{([A-Z0-9_]+)\}\}/g, (whole, k: string) => (k in vars ? vars[k] : whole));
+      expect(rendered, `${platform.id} 渲染后仍有未替换占位`).not.toMatch(/\{\{PLATFORM_[A-Z_]+\}\}/);
+    }
+    expect(claude.templateVars(process.cwd()).PLATFORM_RELAUNCH).toContain('--dangerously-skip-permissions');
+    expect(codex.templateVars(process.cwd()).PLATFORM_RELAUNCH).toContain('--sandbox');
   });
 });
 

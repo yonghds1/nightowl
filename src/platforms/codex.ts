@@ -1,15 +1,36 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { pkgRoot } from '../paths.js';
 import { installFile } from '../commands/install.js';
+import { renderTemplate } from './render.js';
 import type { InstallItem, PermissionsResult, Platform } from './types.js';
 
 const SKILLS = ['nightowl-plan', 'nightowl-run', 'nightowl-report'];
 
-// 注:以下 Codex 配置/hook 结构均按官方文档(learn.chatgpt.com)与 openai/codex 源码实现,
+// 注:以下 Codex 配置/hook/exec 结构按官方文档(learn.chatgpt.com / developers.openai.com/codex)实现,
 // 本机无 codex CLI,未做真实会话验证,待有 Codex 环境的用户实测后修正。
+// 关键更正(vs 早期实现):
+//   - 技能目录是 .agents/skills(官方扫描 CWD→repo root + ~/.agents/skills),不是 .codex/skills;
+//   - --full-auto 已废弃,headless 用 `codex exec --sandbox workspace-write`,静默配 config `approval_policy = "never"`;
+//   - workspace-write 沙箱默认禁网 → 合并/推送需 network_access = true。
+// hook 脚本目录仍是 .codex/hooks(官方支持 <repo>/.codex/hooks.json);Codex PreToolUse stdin 含
+// permission_mode(枚举与 Claude 一致),故与 Claude 共用 permission-mode.mjs。
 
-// Codex 无自定义斜杠命令文件机制(内置 /plan /approve 等,技能自动进斜杠列表),故只铺 skills + hook 脚本。
+// Codex 平台占位符变量:与 Claude 同一技能源,渲染出 Codex 本地化的执行细节。
+const CODEX_TEMPLATE_VARS: Record<string, string> = {
+  PLATFORM_ASK:
+    '用纯文本逐题提问,一次一题,每题编号给 2-4 个具体选项(Codex 无 AskUserQuestion 类交互工具)',
+  PLATFORM_RELAUNCH:
+    '`codex exec --sandbox workspace-write`(静默需在 .codex/config.toml 配 `approval_policy = "never"`;完全免沙箱用 `--dangerously-bypass-approvals-and-sandbox`)',
+  PLATFORM_HEADLESS: '`codex exec resume --last <续跑指令>`(首轮无历史会话去掉 resume 新起)',
+  PLATFORM_SUBAGENT_D:
+    'Codex 子代理(无内置 worktree 隔离):先 `git worktree add <路径> -b <分支>` 建隔离工作区,\n       再指示 Codex 派 worker 子代理在该 worktree 目录下实现、commit',
+  PLATFORM_SUBAGENT_CALL:
+    '派发方式(Codex):\n- 主代理用 Bash `git worktree add <worktree路径> -b <任务分支>` 建隔离区\n- 以自然语言请求 Codex 派 worker 子代理,在 prompt 里显式给出 worktree 工作目录\n- 子代理在 worktree 内实现并 commit,回收合并见下"每个任务的完整闭环"',
+  PLATFORM_SUBAGENT_DIR: '- 目录范围: 当前 worktree(由主代理指派给子代理的隔离工作区)',
+  PLATFORM_PUSH_MODE: '仅 bypass(workspace-write + network_access)下静默 push',
+};
 
 function installTemplates(
   projectRoot: string,
@@ -18,16 +39,17 @@ function installTemplates(
 ): InstallItem[] {
   const results: InstallItem[] = [];
   const skillsSrc = path.join(pkgRoot(), 'skills');
-  // 源码为 .codex/skills;官方文档另有 .agents/skills(agentskills.io 标准)之说,此处取源码位置
+  const render = renderTemplate(CODEX_TEMPLATE_VARS);
+  // 官方技能扫描位:.agents/skills(仓库根及各级父目录,CWD 向上);非 .codex/skills
   for (const name of SKILLS) {
-    const key = path.join('.codex', 'skills', name, 'SKILL.md');
+    const key = path.join('.agents', 'skills', name, 'SKILL.md');
     const dst = path.join(projectRoot, key);
     results.push({
       key,
-      status: installFile(path.join(skillsSrc, name, 'SKILL.md'), dst, hashRec, key, force),
+      status: installFile(path.join(skillsSrc, name, 'SKILL.md'), dst, hashRec, key, force, render),
     });
   }
-  // hook 脚本与 Claude 共用(Codex PreToolUse stdin 同样含 permission_mode/cwd),铺到 .codex/hooks/
+  // hook 脚本:Codex 支持 <repo>/.codex/hooks.json + .codex/hooks/ 脚本;stdin 含 permission_mode,与 Claude 共用脚本
   const hookKey = path.join('.codex', 'hooks', 'permission-mode.mjs');
   const hookDst = path.join(projectRoot, hookKey);
   results.push({
@@ -37,7 +59,7 @@ function installTemplates(
   return results;
 }
 
-// 行级合并单值键:已有键不覆盖,缺失键追加,幂等。
+// 行级合并单值键(顶层):已有键不覆盖,缺失键追加,幂等。
 function mergeTomlKey(existing: string, key: string, value: string): string {
   const re = new RegExp(`^\\s*${key}\\s*=`, 'm');
   if (re.test(existing)) return existing;
@@ -45,21 +67,42 @@ function mergeTomlKey(existing: string, key: string, value: string): string {
   return base === '' ? `${key} = ${value}\n` : `${base}\n${key} = ${value}\n`;
 }
 
+// 合并 [table] 段下的键:无段则整段追加;有段但缺键则在段末追加;有键不动。
+function mergeTomlTableKey(existing: string, table: string, key: string, value: string): string {
+  const headerRe = new RegExp(`^\\[${table}\\]\\s*$`, 'm');
+  const m = headerRe.exec(existing);
+  if (!m) {
+    const base = existing.replace(/\n?$/, '');
+    const sep = base === '' ? '' : '\n';
+    return `${base}${sep}\n[${table}]\n${key} = ${value}\n`;
+  }
+  // 段体 = 从 header 到下一个 [section] 或文件末尾
+  const after = existing.slice(m.index + m[0].length);
+  const nextSection = after.search(/^\[[^\]]+\]\s*$/m);
+  const bodyEnd = nextSection === -1 ? existing.length : m.index + m[0].length + nextSection;
+  const body = existing.slice(m.index + m[0].length, bodyEnd);
+  if (new RegExp(`^\\s*${key}\\s*=`, 'm').test(body)) return existing;
+  return existing.slice(0, bodyEnd) + `${key} = ${value}\n` + existing.slice(bodyEnd);
+}
+
 function writePermissions(projectRoot: string, scope: 'project' | 'local' = 'project'): PermissionsResult {
+  // Codex 无 project/local 之分:项目层 .codex 只在受信时加载;scope 参数保留以对齐接口。
+  void scope;
   const codexDir = path.join(projectRoot, '.codex');
   fs.mkdirSync(codexDir, { recursive: true });
 
   const added: string[] = [];
   const targets: string[] = [];
 
-  // config.toml:静默权限 —— approval_policy=never + workspace-write sandbox
+  // config.toml:静默权限 —— approval_policy=never + workspace-write 沙箱 + 放开网络(合并/推送要联网)
   const cfgTarget = path.join(codexDir, 'config.toml');
   let cfg = fs.existsSync(cfgTarget) ? fs.readFileSync(cfgTarget, 'utf8') : '';
   const cfgBefore = cfg;
-  const nextCfg = mergeTomlKey(mergeTomlKey(cfg, 'approval_policy', '"never"'), 'sandbox_mode', '"workspace-write"');
-  if (nextCfg !== cfgBefore) {
-    cfg = nextCfg;
-    added.push('approval_policy = "never"', 'sandbox_mode = "workspace-write"');
+  cfg = mergeTomlKey(cfg, 'approval_policy', '"never"');
+  cfg = mergeTomlKey(cfg, 'sandbox_mode', '"workspace-write"');
+  cfg = mergeTomlTableKey(cfg, 'sandbox_workspace_write', 'network_access', 'true');
+  if (cfg !== cfgBefore) {
+    added.push('approval_policy = "never"', 'sandbox_mode = "workspace-write"', '[sandbox_workspace_write] network_access = true');
   }
   fs.writeFileSync(cfgTarget, cfg, 'utf8');
   targets.push(cfgTarget);
@@ -74,10 +117,12 @@ function writePermissions(projectRoot: string, scope: 'project' | 'local' = 'pro
   let hooksData: Record<string, unknown> = {};
   if (fs.existsSync(hookTarget)) {
     try {
-      const parsed = JSON.parse(fs.readFileSync(hookTarget, 'utf8')) as Record<string, unknown>;
-      if (parsed && typeof parsed === 'object') hooksData = parsed;
+      const parsed = fs.readFileSync(hookTarget, 'utf8');
+      const obj = parsed.trim() === '' ? {} : (JSON.parse(parsed) as Record<string, unknown>);
+      if (obj && typeof obj === 'object') hooksData = obj;
     } catch {
-      hooksData = {};
+      // 解析失败(非合法 JSON,含注释):不盲目覆盖用户配置,跳过并标记
+      return { added, target: targets.join(', '), hooksAdded: false };
     }
   }
   const hooksAdded =
@@ -92,12 +137,19 @@ function writePermissions(projectRoot: string, scope: 'project' | 'local' = 'pro
   return { added, target: targets.join(', '), hooksAdded };
 }
 
-/** 兜底:读 CODEX_PID(若存在)→ cmdline 含 --full-auto 视为静默模式。无 env → null。 */
+/** 兜底:读 CODEX_PID(若存在)→ cmdline 含免审批特征视为静默模式。无 env → null。 */
 function detectBypass(): boolean | null {
   const pid = process.env.CODEX_PID;
   if (!pid || !/^\d+$/.test(pid)) return null;
+  const BYPASS_FLAGS = ['--dangerously-bypass-approvals-and-sandbox', '--yolo', '--full-auto'];
+  const hit = (cmdline: string): boolean => BYPASS_FLAGS.some((f) => cmdline.includes(f));
   try {
-    return fs.readFileSync(`/proc/${pid}/cmdline`, 'utf8').includes('--full-auto');
+    return hit(fs.readFileSync(`/proc/${pid}/cmdline`, 'utf8'));
+  } catch {
+    // 非 Linux / 无 /proc:走 ps
+  }
+  try {
+    return hit(execFileSync('ps', ['-p', pid, '-o', 'command='], { encoding: 'utf8' }));
   } catch {
     return null;
   }
@@ -107,8 +159,22 @@ export const codex: Platform = {
   id: 'codex',
   name: 'Codex',
   configDir: '.codex',
+  templateVars() {
+    return CODEX_TEMPLATE_VARS;
+  },
   installTemplates,
   writePermissions,
   detectBypass,
-  nonInteractiveCmd: 'codex exec --full-auto --sandbox workspace-write',
+  // --full-auto 已废弃;静默靠 config approval_policy=never(workspace-write)或显式 bypass 标志
+  nonInteractiveCmd: 'codex exec --sandbox workspace-write',
+  headlessRun: {
+    cmd: 'codex',
+    // 续接用 `codex exec resume --last <prompt>`;首轮无历史会话去掉 resume 新起。
+    // sandbox 权限来自 init 写入的 .codex/config.toml(approval_policy=never + workspace-write + 放网)。
+    // 注:本机无 codex CLI 未实测;若 resume 语义有出入,待真实环境修正。
+    args(prompt, useContinue) {
+      if (useContinue) return ['exec', 'resume', '--last', prompt];
+      return ['exec', '--sandbox', 'workspace-write', prompt];
+    },
+  },
 };
