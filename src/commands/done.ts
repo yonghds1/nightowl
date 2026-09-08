@@ -1,4 +1,5 @@
 import { Command } from 'commander';
+import path from 'node:path';
 import {
   loadPool,
   loadState,
@@ -8,6 +9,9 @@ import {
   saveCheckpoint,
   shouldCheckpoint,
 } from '../state.js';
+import { taskCommitInHead } from './next.js';
+import { resolvePlatform } from '../platforms/index.js';
+import { getBaseDir } from '../paths.js';
 import { isoNow } from '../util.js';
 import { t } from '../i18n.js';
 
@@ -17,7 +21,8 @@ export function createDoneCommand(): Command {
     .argument('<id>')
     .argument('<actual_min>', t('done.actualMinArg'), (v: string) => parseInt(v, 10))
     .option('--force', t('done.forceOption'))
-    .action((id: string, actualMin: number, opts: { force: boolean }) => {
+    .option('--require-commit', t('done.requireCommitOption'))
+    .action((id: string, actualMin: number, opts: { force: boolean; requireCommit?: boolean }) => {
       const pool = loadPool();
       if (!pool) {
         console.error(t('common.noPool'));
@@ -51,6 +56,19 @@ export function createDoneCommand(): Command {
           console.error(t('done.noVerify', { id }));
           console.error(t('done.noVerifyHint'));
           process.exit(1);
+        }
+        // git 硬核验:主分支 HEAD 应存在含 `[#<id>]` 标记的 commit(证明确实实现并合并了,
+        // 而非仅靠模型自报 review/verify 状态)。claude 默认只警告(不破坏既有无人值守流程),
+        // 新平台默认阻断;--require-commit 让所有平台都阻断。--force 已整体旁路本块。
+        if (!taskCommitInHead(id)) {
+          const platform = resolvePlatform(undefined, path.dirname(getBaseDir()));
+          const strict = opts.requireCommit === true || platform.id !== 'claude';
+          if (strict) {
+            console.error(t('done.noCommit', { id }));
+            console.error(t('done.noCommitHint'));
+            process.exit(1);
+          }
+          console.log(t('done.noCommitWarn', { id }));
         }
       }
       task.status = 'done';

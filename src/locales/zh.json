@@ -66,7 +66,8 @@
   "done": {
     "desc": "完成",
     "actualMinArg": "实际用时分钟",
-    "forceOption": "跳过审查/测试校验",
+    "forceOption": "跳过审查/测试/commit 校验",
+    "requireCommitOption": "强制校验主分支含 [#id] commit(默认新平台阻断/Claude 警告)",
     "alreadyDone": "⚠️  {{id}} 已标记完成,跳过",
     "noReview": "❌ {{id}} 尚未代码审查,拒绝标记完成。",
     "noReviewHint": "   先运行 nightowl review <id> --result PASS,或用 --force 跳过",
@@ -74,6 +75,9 @@
     "reviewFailHint": "   修复后重新审查为 PASS,或用 --force 跳过",
     "noVerify": "❌ {{id}} 尚未通过验收测试(verify),拒绝标记完成。",
     "noVerifyHint": "   先运行 nightowl verify <id>,或用 --force 跳过",
+    "noCommit": "❌ {{id}} 主分支找不到含 [#{{id}}] 的 commit,拒绝标记完成。",
+    "noCommitHint": "   确认实现子代理已提交且 commit message 含 `[#{{id}}]`、并合回主分支;或用 --force 跳过",
+    "noCommitWarn": "⚠️  {{id}} 主分支未找到含 [#{{id}}] 的 commit(请确认已实现+合并;Claude 平台仅警告不阻断)",
     "completedLog": "✅ {{id}} 完成,实际用时 {{actual}} 分",
     "ok": "✅ {{id}} 已标记完成"
   },

@@ -66,7 +66,8 @@
   "done": {
     "desc": "Mark done",
     "actualMinArg": "Actual minutes spent",
-    "forceOption": "Skip review/test checks",
+    "forceOption": "Skip review/test/commit checks",
+    "requireCommitOption": "Enforce the main branch has a [#id] commit (default: new platforms block, Claude warns)",
     "alreadyDone": "⚠️  {{id}} already marked done, skipping",
     "noReview": "❌ {{id}} has not been code-reviewed, refusing to mark done.",
     "noReviewHint": "   Run nightowl review <id> --result PASS first, or use --force to skip",
@@ -74,6 +75,9 @@
     "reviewFailHint": "   Re-review as PASS after fixing, or use --force to skip",
     "noVerify": "❌ {{id}} has not passed verification (verify), refusing to mark done.",
     "noVerifyHint": "   Run nightowl verify <id> first, or use --force to skip",
+    "noCommit": "❌ {{id}}: no commit with [#{{id}}] found on the main branch, refusing to mark done.",
+    "noCommitHint": "   Confirm the implementer committed with `[#{{id}}]` in the message and merged to the main branch; or use --force to skip",
+    "noCommitWarn": "⚠️  {{id}}: no commit with [#{{id}}] on the main branch (ensure implemented + merged; Claude platform warns only, does not block)",
     "completedLog": "✅ {{id}} done, took {{actual}} min",
     "ok": "✅ {{id}} marked done"
   },

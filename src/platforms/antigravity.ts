@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
 import { pkgRoot } from '../paths.js';
 import { installFile } from '../commands/install.js';
 import { renderTemplate } from './render.js';
@@ -14,7 +13,8 @@ const SKILLS = ['nightowl-plan', 'nightowl-run', 'nightowl-report'];
 // 本机无 agy CLI,未做真实会话验证,待有环境的用户实测后修正。
 // 关键差异(与其他三家):
 //   - 技能目录 .agents/skills(与 Codex/OpenCode 共享同一份铺入);自定义子代理 .agents/agents/*.md;
-//   - hook stdin 无 permission_mode 字段 → 不能复用 permission-mode.mjs,selfcheck 走 ps 兜底;
+//   - hook stdin 无 permission_mode 字段 → 不能复用 permission-mode.mjs,selfcheck 兜底改读全局
+//     settings 的 nightowl allow 规则(不做 ps 扫描,避免与 harness 同名 flag / agy 临时目录误匹配);
 //   - 权限只有全局 ~/.gemini/antigravity-cli/settings.json(无项目级),headless 未授权动作是 soft-deny
 //     (静默跳过、exit 0)——所以静默 run 强烈依赖 `--dangerously-skip-permissions`(supervise 已注入),
 //     否则子代理的写文件/命令会被悄悄跳过,整轮白跑。
@@ -117,28 +117,19 @@ function writePermissions(projectRoot: string, scope: 'project' | 'local' = 'pro
 }
 
 /**
- * 无 permission_mode hook → 兜底:
- * 1) 全局 settings 已含 nightowl allow 规则 → 视为已配静默(true);
- * 2) 否则扫 ps 找带 --dangerously-skip-permissions 的 agy 进程;
- * 3) 都判不出 → null(selfcheck unknown,引导用 --dangerously-skip-permissions)。
+ * 无 permission_mode hook → 只看全局 settings 里是否已有 nightowl allow 规则(确定性强):
+ * 有该规则 → 视为已配静默(true);无 settings / 无该规则 → null(unknown,run 自检据此引导用
+ * --dangerously-skip-permissions)。不做系统级 ps 扫描:harness 自身常带同名 flag、
+ * 临时目录名含 "agy" 会误匹配,ps 兜底会产生假阳性,反让静默 run 误判可开工。
  */
 function detectBypass(): boolean | null {
   try {
     const f = settingsFile();
-    if (fs.existsSync(f)) {
-      const data = JSON.parse(fs.readFileSync(f, 'utf8').trim() || '{}') as Record<string, unknown>;
-      const perms = data.permissions as Record<string, unknown> | undefined;
-      const allow = Array.isArray(perms?.allow) ? (perms.allow as unknown[]) : [];
-      if (allow.includes('command(nightowl)')) return true;
-    }
-  } catch {
-    // 读全局失败,继续走 ps 兜底
-  }
-  try {
-    const out = execFileSync('ps', ['-eo', 'args'], { encoding: 'utf8' });
-    return out
-      .split('\n')
-      .some((line) => /\bagy\b/.test(line) && line.includes('--dangerously-skip-permissions'));
+    if (!fs.existsSync(f)) return null;
+    const data = JSON.parse(fs.readFileSync(f, 'utf8').trim() || '{}') as Record<string, unknown>;
+    const perms = data.permissions as Record<string, unknown> | undefined;
+    const allow = Array.isArray(perms?.allow) ? (perms.allow as unknown[]) : [];
+    return allow.includes('command(nightowl)') ? true : null;
   } catch {
     return null;
   }

@@ -28,11 +28,18 @@ export function nextTask(pool: Pool, state: AppState): Task | null {
   return candidates[0];
 }
 
-/** 续跑幂等检测:该任务 id 是否有 git commit(commit message 带任务 id)。 */
+/** 转义 id 里的正则元字符,拼成 `[<id>]` 边界标记(grep 用 -E,方括号需转义)。 */
+function commitMarkerRegex(id: string): string {
+  const esc = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return `\\[#${esc}\\]`;
+}
+
+/** 续跑幂等检测:该任务 id 是否有 git commit(commit message 含 `[#<id>]` 标记)。
+ *  用 `-E` + `\[#id\]` 精确匹配,避免 `T1` 误命中 `T10`/`T11`(子串 bug)。 */
 export function taskCommitStatus(
   tid: string,
 ): { status: 'unmerged' | 'merged' | null; hash: string | null } {
-  const out = git(['log', '--all', '--oneline', '--grep', tid]).stdout;
+  const out = git(['log', '--all', '--oneline', '-E', '--grep', commitMarkerRegex(tid)]).stdout;
   const head = git(['rev-parse', 'HEAD']).stdout;
   if (!out || !head) return { status: null, hash: null };
   const hashes = out
@@ -44,6 +51,14 @@ export function taskCommitStatus(
     if (r.code !== 0) return { status: 'unmerged', hash: h };
   }
   return { status: 'merged', hash: hashes[0] };
+}
+
+/** done 硬核验用:当前 HEAD 历史里是否存在含 `[#<id>]` 标记的 commit;返回该 hash 或 null。 */
+export function taskCommitInHead(id: string): string | null {
+  const out = git(['log', '--oneline', '-E', '--grep', commitMarkerRegex(id)]).stdout;
+  const first = out.split('\n')[0]?.trim();
+  if (!first) return null;
+  return first.split(/\s+/)[0] || null;
 }
 
 /** 判活:优先返回 in_progress 的未完成任务(崩溃续跑),否则 nextTask 挑下一个可执行任务。 */

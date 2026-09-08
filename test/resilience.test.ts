@@ -45,7 +45,7 @@ function makeUnmergedCommit(): string {
   git(['checkout', '-q', '-b', 'wt-t1']);
   fs.writeFileSync(path.join(root, 'impl.txt'), 'work');
   git(['add', 'impl.txt']);
-  git(['commit', '-q', '-m', 'feat(T1): impl']);
+  git(['commit', '-q', '-m', '[#T1] impl']);
   const h = git(['rev-parse', 'HEAD']).stdout.trim().slice(0, 7);
   git(['checkout', '-q', base]);
   return h;
@@ -57,7 +57,7 @@ function makeUnmergedWorktree(): string {
   git(['worktree', 'add', '-q', '-b', 'wt-t1', wt]);
   fs.writeFileSync(path.join(wt, 'impl.txt'), 'work');
   spawnSync('git', ['-C', wt, 'add', 'impl.txt'], { encoding: 'utf8' });
-  spawnSync('git', ['-C', wt, 'commit', '-q', '-m', 'feat(T1): impl'], { encoding: 'utf8' });
+  spawnSync('git', ['-C', wt, 'commit', '-q', '-m', '[#T1] impl'], { encoding: 'utf8' });
   return wt;
 }
 
@@ -119,7 +119,7 @@ describe('sweep 清理残留 worktree', () => {
     git(['worktree', 'add', '-q', '--detach', wt, 'HEAD']);
     fs.writeFileSync(path.join(wt, 'det.txt'), 'x');
     spawnSync('git', ['-C', wt, 'add', 'det.txt'], { encoding: 'utf8' });
-    spawnSync('git', ['-C', wt, 'commit', '-q', '-m', 'feat(T1): detached work'], {
+    spawnSync('git', ['-C', wt, 'commit', '-q', '-m', '[#T1] detached work'], {
       encoding: 'utf8',
     });
     const r = runCommand(createSweepCommand(), []);
