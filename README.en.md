@@ -4,6 +4,19 @@ English | [中文](README.md)
 
 Autonomous scheduling skill: **plan** analyzes requirements interactively → **run** executes silently → **report** wraps up. Break a large request into an executable task pool, let the run phase grind through it with no interaction, and get a report when it's done.
 
+Multi-agent host support: **Claude Code / Codex / OpenCode / Antigravity CLI** (`nightowl init --<platform>`). The business core is host-agnostic; only skill install paths, permission models, subagent dispatch, and headless driving are adapted per host.
+
+## Platforms
+
+| Platform | alias | Skill install | Silent/permission | headless (supervise) | Status |
+|----------|-------|---------------|-------------------|----------------------|--------|
+| Claude Code | `--claude` (default) | `.claude/skills/` | settings.json allow + PreToolUse hook | `claude -p --continue` | ✅ battle-tested |
+| Codex | `--codex` | `.agents/skills/` | `.codex/config.toml` (never + workspace-write + network) + hooks.json | `codex exec resume --last` | 🧪 per-docs, not yet verified on real CLI |
+| OpenCode | `--opencode` | `.agents/skills/` | `opencode.json` permission rules | `opencode run --auto --continue` | 🧪 per-docs, not yet verified on real CLI |
+| Antigravity CLI | `--antigravity` | `.agents/skills/` + `.agents/agents/` | global `~/.gemini/antigravity-cli/settings.json` allow | `agy -p --dangerously-skip-permissions --continue` | 🧪 per-docs, not yet verified on real CLI |
+
+> Codex/OpenCode/Antigravity share `.agents/skills/` (a cross-agent standard dir) — one install is read by all three. Skill bodies are host-agnostic; `init` renders per-platform differences (subagent dispatch / asking tool / launch commands) from `{{PLATFORM_*}}` placeholders. Design & research: [`docs/multi-agent-plan.md`](docs/multi-agent-plan.md).
+
 ## Install
 
 ```bash
@@ -28,9 +41,9 @@ NIGHTOWL_LANG=en nightowl status
 ## Quick start
 
 ```bash
-# 1. Project-level init: creates the .nightowl/ task pool + requests permissions + lays skills into .claude/
+# 1. Project-level init: creates the .nightowl/ task pool + requests permissions + lays skills per platform
 #    -u <your-name> writes the developer identity (.nightowl/.developer)
-#    --claude selects the Claude Code platform (currently the only one supported)
+#    platform alias: --claude (default) / --codex / --opencode / --antigravity; or --platform <id>
 nightowl init -u <your-name> --claude
 
 # 2. Add a task (auto-generates a PRD document)
@@ -47,7 +60,7 @@ nightowl status
 
 ### plan — analyze requirements interactively
 
-- `nightowl init -u <your-name> --claude` project-level init: builds the `.nightowl/` task pool + auto-requests permissions + lays skills into `.claude/skills/nightowl-*` (all committed to git, ready after clone); `--scope local` applies permissions to this machine only, `--skip-permissions` skips the permission request. `nightowl status` reports when project skills lag the current package; re-run `init` to refresh
+- `nightowl init -u <your-name> --<platform>` project-level init: builds the `.nightowl/` task pool + auto-requests permissions + lays skills per platform (Claude → `.claude/skills/`; Codex/OpenCode/Antigravity → `.agents/skills/`, all committed to git, ready after clone); `--scope local` applies permissions to this machine only, `--skip-permissions` skips the permission request. `nightowl status` reports when project skills lag the current package; re-run `init` to refresh
 - `nightowl analyze` analyze the project and generate `.nightowl/nightowl.context.md` (stack / entry points / test commands / CI, which the implementer subagent reads first during run)
 - `nightowl add` add a task, fields: `--id --title --priority --est-min --assignee --desc --acceptance --depends-on --verify --slug`
 - `nightowl status` inspect the task pool
@@ -63,7 +76,7 @@ nightowl status
 - `nightowl sweep` clean up leftover worktrees (reclaims half-done work after an interrupted resume)
 - `nightowl push` push unpushed commits (`PUSH_OK` / `PUSH_NOTHING` / `PUSH_SKIPPED_NO_REMOTE`)
 
-**Unattended**: use `nightowl supervise` in the run phase as the driver engine instead of a manual loop — it repeatedly launches `claude -p --continue` to extend the main session and advance the pool, **exiting automatically when the pool completes** (if the report was not written, it launches a finalize round to guarantee it — exiting means the run fully finished); restarting after an interruption resumes from the checkpoint (`--continue` + idempotent resume, no re-implementation of finished tasks). Common flags: `--interval-sec` / `--timeout-min` / `--max-idle`; `--once` for debugging.
+**Unattended**: use `nightowl supervise` in the run phase as the driver engine instead of a manual loop — per platform it repeatedly launches the host's headless session (Claude `claude -p --continue`, Codex `codex exec resume --last`, OpenCode `opencode run --auto --continue`, Antigravity `agy -p --dangerously-skip-permissions --continue`) to extend the main session and advance the pool, **exiting automatically when the pool completes** (if the report was not written, it launches a finalize round to guarantee it — exiting means the run fully finished); restarting after an interruption resumes from the checkpoint (session continuation + idempotent resume, no re-implementation of finished tasks). Common flags: `--interval-sec` / `--timeout-min` / `--max-idle`; `--once` for debugging.
 
 ### report — wrap up (default after run)
 
@@ -75,7 +88,7 @@ nightowl status
 
 | Command | Description |
 |---------|-------------|
-| `init` | Project-level init: task pool + permissions + skills (`-u <name> --claude`) |
+| `init` | Project-level init: task pool + permissions + skills (`-u <name> --<platform>`) |
 | `add` | Add a task |
 | `status` | Show status |
 | `next` | Next task |
@@ -91,13 +104,15 @@ nightowl status
 | `resume` | Resume after crash |
 | `checkpoint` | Checkpoint management |
 | `setup-permissions` | Top up permissions |
-| `supervise` | Unattended main-session driver (repeatedly launches claude to continue run, exits when pool completes) |
+| `supervise` | Unattended main-session driver (per-platform headless loop to continue run, exits when pool completes) |
 
 ## Project-level skills
 
 `nightowl init` lays skills down per project (trellis-style, committed to git, ready after clone):
 
-- Skills → `.claude/skills/nightowl-plan/`, `nightowl-run/`, `nightowl-report/`
+- Skills → Claude: `.claude/skills/nightowl-{plan,run,report}/`; Codex/OpenCode/Antigravity: `.agents/skills/nightowl-{plan,run,report}/` (cross-agent shared dir)
+- Antigravity additionally lays subagent defs `.agents/agents/nightowl-{implementer,reviewer}.md` (for `invoke_subagent`)
+- Skill bodies are host-agnostic; `init` renders `{{PLATFORM_*}}` placeholders into per-platform subagent-dispatch / asking / launch behavior (re-run `init` after switching platform to re-lay the rendered version)
 - Template hashes recorded in `.nightowl/.template-hashes.json`: per-file hash + skill source version stamp. Re-run `nightowl init` after a package upgrade auto-updates uncustomized files; locally customized ones are skipped (`--force` overwrites). `nightowl status` reports when project skills lag the current package version
 - Identity → `.nightowl/.developer` (written by `-u`, consider adding to .gitignore)
 

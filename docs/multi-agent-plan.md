@@ -81,6 +81,12 @@ P0 / P1 / P2 已落地，`npm test` 163 用例全绿，四平台 `init` CLI 冒�
 
 **未验证项（需真实环境）**：codex / opencode / antigravity 的 headless 续接语义、子代理是否严守 worktree 约束、Codex 项目受信后 config 生效、Antigravity soft-deny 行为——均按文档实现，标注 🧪。
 
+### 已知限制
+
+- **切换宿主不清理旧技能目录**：`init` 按当前平台铺技能，但不会删除上次平台独占目录里的 `nightowl-*`。多数情况无害（各平台只读自己的扫描位），但 **OpenCode 兼容读取 `.claude/skills` + `.agents/skills` + `.opencode/skills`**：同一项目先 `--claude` 后 `--opencode`，两份技能会被 OpenCode 同时发现 → 技能列表重复。规避：切到 OpenCode 前手动删 `.claude/skills/nightowl-*`（或后续加"切平台清理"逻辑，未在本次范围）。
+- **Antigravity 权限写全局**：`~/.gemini/antigravity-cli/settings.json`，多项目共享同一份 allow 规则；`scope=project` 实际也只写全局（无项目级文件）。
+- **supervise 首轮续接依赖各 CLI 的"无历史会话"容错**：`useContinue` 快速失败会回退新开会话（已有回退逻辑），但各平台无历史时的具体行为待实测。
+
 ## 五、来源
 
 - Codex: developers.openai.com/codex/skills · learn.chatgpt.com/docs/{non-interactive-mode,hooks,agent-configuration/subagents,config-file/config-basic,environments/git-worktrees}.md
