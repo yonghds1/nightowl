@@ -59,30 +59,54 @@ function installTemplates(
   return results;
 }
 
-// 行级合并单值键(顶层):已有键不覆盖,缺失键追加,幂等。
-function mergeTomlKey(existing: string, key: string, value: string): string {
-  const re = new RegExp(`^\\s*${key}\\s*=`, 'm');
-  if (re.test(existing)) return existing;
-  const base = existing.replace(/\n?$/, '');
-  return base === '' ? `${key} = ${value}\n` : `${base}\n${key} = ${value}\n`;
+// 顶层区 = 文件开头到第一个 [section] 头之前(无 section 则整文件为顶层区)。
+// 顶层键必须落在这一段,否则会被后续 [table] 吞成该表的键,Codex 读不到顶层值。
+function splitTopLevel(existing: string): { head: string; rest: string } {
+  const m = /^\[[^\]]+\]\s*(#.*)?$/m.exec(existing);
+  if (!m) return { head: existing, rest: '' };
+  return { head: existing.slice(0, m.index), rest: existing.slice(m.index) };
 }
 
-// 合并 [table] 段下的键:无段则整段追加;有段但缺键则在段末追加;有键不动。
+/** 从文本尾部摘出连续的空行/注释行(TOML 里它们按惯例属于紧随其后的 section)。 */
+function detachTrailingComments(text: string): { kept: string; anchor: string } {
+  const lines = text.split('\n');
+  let end = lines.length;
+  while (end > 0 && /^\s*(#.*)?$/.test(lines[end - 1])) end -= 1;
+  return { kept: lines.slice(0, end).join('\n'), anchor: lines.slice(end).join('\n') };
+}
+
+// 合并顶层单值键:仅在顶层区检测/插入(避免埋进 [table] 段),已有键不覆盖,幂等。
+// 插入点回退到紧邻首个 section 的注释块之前,不把注释和它的段拆散。
+function mergeTomlKey(existing: string, key: string, value: string): string {
+  const { head, rest } = splitTopLevel(existing);
+  if (new RegExp(`^\\s*${key}\\s*=`, 'm').test(head)) return existing;
+  const { kept, anchor } = detachTrailingComments(head);
+  const headOut = kept === '' ? `${key} = ${value}\n` : `${kept}\n${key} = ${value}\n`;
+  if (rest === '') return `${headOut}${anchor}`;
+  // anchor(空行+注释块)自带换行,直接拼接可保持"注释紧贴其 section"
+  return anchor === '' ? `${headOut}\n${rest}` : `${headOut}${anchor}${rest}`;
+}
+
+// 合并 [table] 段下的键:无段则整段追加;有段但缺键则在段末追加(回退过段尾注释块);有键不动。
 function mergeTomlTableKey(existing: string, table: string, key: string, value: string): string {
-  const headerRe = new RegExp(`^\\[${table}\\]\\s*$`, 'm');
+  const headerRe = new RegExp(`^\\[${table}\\]\\s*(#.*)?$`, 'm');
   const m = headerRe.exec(existing);
   if (!m) {
     const base = existing.replace(/\n?$/, '');
     const sep = base === '' ? '' : '\n';
     return `${base}${sep}\n[${table}]\n${key} = ${value}\n`;
   }
-  // 段体 = 从 header 到下一个 [section] 或文件末尾
+  // 段体 = 从 header 到下一个 [section](含带尾注的头)或文件末尾
   const after = existing.slice(m.index + m[0].length);
-  const nextSection = after.search(/^\[[^\]]+\]\s*$/m);
-  const bodyEnd = nextSection === -1 ? existing.length : m.index + m[0].length + nextSection;
-  const body = existing.slice(m.index + m[0].length, bodyEnd);
+  const nextSection = after.search(/^\[[^\]]+\]\s*(#.*)?$/m);
+  const rawEnd = nextSection === -1 ? existing.length : m.index + m[0].length + nextSection;
+  const body = existing.slice(m.index + m[0].length, rawEnd);
   if (new RegExp(`^\\s*${key}\\s*=`, 'm').test(body)) return existing;
-  return existing.slice(0, bodyEnd) + `${key} = ${value}\n` + existing.slice(bodyEnd);
+  // 插入点回退过段尾注释块(它们通常描述紧随的下一个 section),且不得越过 header
+  const { kept } = detachTrailingComments(body);
+  const bodyEnd = Math.min(m.index + m[0].length + kept.length, rawEnd);
+  const gap = existing.slice(bodyEnd - 1, bodyEnd) === '\n' ? '' : '\n';
+  return existing.slice(0, bodyEnd) + `${key} = ${value}\n` + gap + existing.slice(bodyEnd);
 }
 
 function writePermissions(projectRoot: string, scope: 'project' | 'local' = 'project'): PermissionsResult {
@@ -97,44 +121,65 @@ function writePermissions(projectRoot: string, scope: 'project' | 'local' = 'pro
   // config.toml:静默权限 —— approval_policy=never + workspace-write 沙箱 + 放开网络(合并/推送要联网)
   const cfgTarget = path.join(codexDir, 'config.toml');
   let cfg = fs.existsSync(cfgTarget) ? fs.readFileSync(cfgTarget, 'utf8') : '';
-  const cfgBefore = cfg;
-  cfg = mergeTomlKey(cfg, 'approval_policy', '"never"');
-  cfg = mergeTomlKey(cfg, 'sandbox_mode', '"workspace-write"');
-  cfg = mergeTomlTableKey(cfg, 'sandbox_workspace_write', 'network_access', 'true');
-  if (cfg !== cfgBefore) {
-    added.push('approval_policy = "never"', 'sandbox_mode = "workspace-write"', '[sandbox_workspace_write] network_access = true');
+  const wantCfg: Array<[string, string, string | null, string]> = [
+    ['approval_policy', '"never"', null, 'approval_policy = "never"'],
+    ['sandbox_mode', '"workspace-write"', null, 'sandbox_mode = "workspace-write"'],
+    ['network_access', 'true', 'sandbox_workspace_write', '[sandbox_workspace_write] network_access = true'],
+  ];
+  for (const [key, value, table, label] of wantCfg) {
+    const before = cfg;
+    cfg = table === null ? mergeTomlKey(cfg, key, value) : mergeTomlTableKey(cfg, table, key, value);
+    if (cfg !== before) added.push(label);
   }
-  fs.writeFileSync(cfgTarget, cfg, 'utf8');
-  targets.push(cfgTarget);
-
-  // hooks.json:PreToolUse → node 跑共用脚本,只写不拦(退出 0)
+  // 先校验 hooks.json 再落盘:任一文件不合法则整体不写,避免半改状态。
   const hookTarget = path.join(codexDir, 'hooks.json');
-  const want = {
-    PreToolUse: [
-      { hooks: [{ type: 'command', command: 'node', args: [`${path.join('.codex', 'hooks', 'permission-mode.mjs')}`] }] },
-    ],
-  };
   let hooksData: Record<string, unknown> = {};
   if (fs.existsSync(hookTarget)) {
     try {
       const parsed = fs.readFileSync(hookTarget, 'utf8');
       const obj = parsed.trim() === '' ? {} : (JSON.parse(parsed) as Record<string, unknown>);
-      if (obj && typeof obj === 'object') hooksData = obj;
+      if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) {
+        return { added: [], target: targets.join(', '), hooksAdded: false };
+      }
+      hooksData = obj;
     } catch {
-      // 解析失败(非合法 JSON,含注释):不盲目覆盖用户配置,跳过并标记
-      return { added, target: targets.join(', '), hooksAdded: false };
+      // 解析失败(非合法 JSON,含注释):不盲目覆盖用户配置,config.toml 也回退不写
+      return { added: [], target: targets.join(', '), hooksAdded: false };
     }
   }
-  const hooksAdded =
-    !Array.isArray(hooksData?.PreToolUse) || JSON.stringify(hooksData.PreToolUse) !== JSON.stringify(want.PreToolUse);
-  if (hooksAdded) {
-    hooksData = { ...hooksData, PreToolUse: want.PreToolUse };
+  fs.writeFileSync(cfgTarget, cfg, 'utf8');
+  targets.push(cfgTarget);
+
+  // hooks.json:PreToolUse → node 跑共用脚本,只写不拦(退出 0)。
+  // 用户已有同事件 hooks 时追加我们的 matcher,不整体替换(否则会静默摧毁其自配钩子)。
+  const hookPath = path.join('.codex', 'hooks', 'permission-mode.mjs');
+  const ours = { type: 'command', command: 'node', args: [hookPath] };
+  const existingMatchers = Array.isArray(hooksData.PreToolUse) ? hooksData.PreToolUse : [];
+  const alreadyOurs = existingMatchers.some((matcher) => commandMatches(matcher, hookPath));
+  let hooksAdded = false;
+  if (!alreadyOurs) {
+    hooksData.PreToolUse = [...existingMatchers, { hooks: [ours] }];
     added.push('hooks.PreToolUse → permission-mode.mjs');
+    hooksAdded = true;
   }
   fs.writeFileSync(hookTarget, `${JSON.stringify(hooksData, null, 2)}\n`, 'utf8');
   targets.push(hookTarget);
 
   return { added, target: targets.join(', '), hooksAdded };
+}
+
+/** matcher 是否已含指向目标 hook 脚本的 command entry(按路径后缀比较,容忍绝对/相对写法差异)。 */
+function commandMatches(matcher: unknown, hookPath: string): boolean {
+  const m = matcher as { hooks?: unknown } | null;
+  if (!m || !Array.isArray(m.hooks)) return false;
+  const want = path.normalize(hookPath).replaceAll('\\', '/');
+  return m.hooks.some((h) => {
+    const entry = h as { args?: unknown; command?: unknown };
+    if (!Array.isArray(entry?.args)) return false;
+    return entry.args.some(
+      (a) => typeof a === 'string' && path.normalize(a).replaceAll('\\', '/').endsWith(want),
+    );
+  });
 }
 
 /** 兜底:读 CODEX_PID(若存在)→ cmdline 含免审批特征视为静默模式。无 env → null。 */

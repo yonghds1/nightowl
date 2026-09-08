@@ -69,7 +69,7 @@ export function runHostRound(
 ): Promise<HostRoundResult> {
   return new Promise((resolve) => {
     const started = Date.now();
-    const args = hr.args(prompt, useContinue);
+    const args = hr.args(prompt, useContinue, timeoutMs);
     const child = spawn(hr.cmd, args, { cwd: process.cwd(), stdio: ['ignore', 'pipe', 'pipe'] });
     if (onSpawn) onSpawn(child);
     child.stdout.on('data', (d: Buffer) => logLine(`[out] ${d.toString()}`));

@@ -70,12 +70,14 @@ function settingsFile(): string {
   return process.env.AGY_SETTINGS_FILE ?? path.join(os.homedir(), '.gemini', 'antigravity-cli', 'settings.json');
 }
 
-// headless 静默所需的最小 allow 规则(command(...) / write_file(...) 语法)。
+// headless 静默所需的最小 allow 规则(action(target) 语法)。
+// 注意:command() 默认按"逐字词前缀"匹配,交替/模式必须带 regex: 前缀,
+// 否则 'npm run (test|build|lint)' 会被当字面量前缀,永远匹配不上。
 const ANTIGRAVITY_ALLOW_RULES = [
   'command(nightowl)',
   'command(git)',
   'command(node)',
-  'command(npm run (test|build|lint))',
+  'command(regex:npm run (test|build|lint))',
   'command(npx)',
   'read_file(*)',
   'write_file(*)',
@@ -148,11 +150,17 @@ export const antigravity: Platform = {
   nonInteractiveCmd: 'agy -p --dangerously-skip-permissions',
   headlessRun: {
     cmd: 'agy',
-    // agy -p <prompt>:headless 单轮;--dangerously-skip-permissions 免确认(run 静默必需);
+    // agy --print <prompt>:headless 单轮;--dangerously-skip-permissions 免确认(run 静默必需);
     // --continue 续接最近会话;首轮无历史去掉 --continue 新起。
     // 注:本机无 agy CLI 未实测,待真实环境修正。
-    args(prompt, useContinue) {
-      const a = ['-p', prompt, '--dangerously-skip-permissions'];
+    args(prompt, useContinue, timeoutMs) {
+      // 官方超时:--print-timeout 默认 5m。若小于 supervise 轮超时,agy 会先自行退出,
+      // 被误判为快速失败触发回退新开会话(丢上下文)。显式放大到 timeoutMs + 1 分钟余量。
+      const a = ['--print', prompt, '--dangerously-skip-permissions'];
+      if (timeoutMs && timeoutMs > 0) {
+        const mins = Math.ceil(timeoutMs / 60_000) + 1;
+        a.push('--print-timeout', `${mins}m`);
+      }
       if (useContinue) a.push('--continue');
       return a;
     },

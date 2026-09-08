@@ -82,10 +82,21 @@ describe('antigravity platform', () => {
     expect(antigravity.detectBypass()).toBe(true);
   });
 
-  it('headlessRun:agy -p <prompt> --dangerously-skip-permissions [--continue]', () => {
+  it('headlessRun:agy --print <prompt> --dangerously-skip-permissions [--continue] + 放大 --print-timeout', () => {
     expect(antigravity.headlessRun?.cmd).toBe('agy');
-    expect(antigravity.headlessRun?.args('P', false)).toEqual(['-p', 'P', '--dangerously-skip-permissions']);
-    expect(antigravity.headlessRun?.args('P', true)).toEqual(['-p', 'P', '--dangerously-skip-permissions', '--continue']);
+    expect(antigravity.headlessRun?.args('P', false)).toEqual(['--print', 'P', '--dangerously-skip-permissions']);
+    expect(antigravity.headlessRun?.args('P', true)).toEqual(['--print', 'P', '--dangerously-skip-permissions', '--continue']);
+    // 传 timeoutMs 时注入 --print-timeout:默认仅 5m,会先于 supervise 轮超时自行退出被误判快速失败
+    expect(antigravity.headlessRun?.args('P', false, 30 * 60_000)).toEqual([
+      '--print', 'P', '--dangerously-skip-permissions', '--print-timeout', '31m',
+    ]);
+  });
+
+  it('allow 规则:交替模式带 regex: 前缀(官方 command() 默认逐字面量词前缀匹配)', () => {
+    const res = antigravity.writePermissions(root, 'project');
+    const data = JSON.parse(fs.readFileSync(settings, 'utf8'));
+    expect(data.permissions.allow).toContain('command(regex:npm run (test|build|lint))');
+    expect(res.added).toContain('command(regex:npm run (test|build|lint))');
   });
 
   it('nonInteractiveCmd 带 --dangerously-skip-permissions', () => {

@@ -67,18 +67,20 @@ function writePermissions(projectRoot: string, scope: 'project' | 'local' = 'pro
   }
 
   const added: string[] = [];
+  // 合法权限键见 opencode ConfigPermissionV1: read/edit/glob/grep/list/bash/task/skill 等。
+  // 注意没有 "write" —— 写文件权限由 edit 覆盖(tools 映射里 write/patch 也归 edit),
+  // 写 "write" 会被 schema 的 rest 索引静默吞掉成为死配置。
   const want: Record<string, unknown> = {
     // 静默 run 所需工具全部 allow;rm 保持默认(ask),由 --auto 在 headless 下放行非显式 deny 操作
     bash: 'allow',
     edit: 'allow',
-    write: 'allow',
     task: 'allow',
     skill: 'allow',
   };
   const existing = data.permission;
   if (existing === undefined) {
     data.permission = want;
-    added.push('permission → 默认放开 bash/edit/write/task/skill');
+    added.push('permission → 默认放开 bash/edit/task/skill');
   } else if (typeof existing === 'string') {
     // 已有全局字符串(如 "ask"):nightowl 不擅自改语义,保持原样,交给 --auto
     added.push('permission 已存在(全局字符串),未改动;headless 用 --auto 放行');

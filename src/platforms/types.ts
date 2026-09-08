@@ -20,8 +20,10 @@ export interface HeadlessRun {
   /**
    * 组装 headless 无交互运行一个续跑轮次的 argv(prompt 已内含无人值守续跑指令)。
    * useContinue=false 时去掉 --continue(supervise 首轮无历史会话时回退新开)。
+   * timeoutMs 为本轮硬超时(supervise 传入);宿主若有自带更早的超时机制,应放大到不低于它,
+   * 避免宿主先于 supervise 的 kill 自行退出导致误判快速失败。
    */
-  args(prompt: string, useContinue: boolean): string[];
+  args(prompt: string, useContinue: boolean, timeoutMs?: number): string[];
 }
 
 export interface Platform {
