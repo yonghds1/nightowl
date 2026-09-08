@@ -71,7 +71,7 @@ nightowl status
 - `nightowl next` fetch the next task: emits the scheduling protocol (`WORKTREE_ROOT` / tab-separated fields / `PRD_PATH` / `DESCRIPTION` / `ACCEPTANCE` / `VERIFY`) with resume detection (`# RESUME_MERGE` / `# RESUME_COMMITTED` / `# RESUME in_progress`)
 - `nightowl review <id> --result PASS` record a review (`--level full|light`, multiple rounds go into history)
 - `nightowl verify <id>` run the acceptance command; records `verify_passed` on success
-- `nightowl done <id> <actual_min>` mark done, gated by **review gate + test gate** (`--force` bypasses)
+- `nightowl done <id> <actual_min>` mark done, gated by **review gate + test gate + git check** (verifies the main branch has a commit tagged `[#<id>]`; Claude warns only, other platforms block by default — `--require-commit` forces it everywhere, `--force` bypasses all gates)
 - `nightowl block <id> <reason>` block (saves a checkpoint immediately)
 - `nightowl sweep` clean up leftover worktrees (reclaims half-done work after an interrupted resume)
 - `nightowl push` push unpushed commits (`PUSH_OK` / `PUSH_NOTHING` / `PUSH_SKIPPED_NO_REMOTE`)

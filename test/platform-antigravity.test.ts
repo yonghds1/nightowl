@@ -76,9 +76,8 @@ describe('antigravity platform', () => {
     expect(fs.readFileSync(settings, 'utf8')).toContain('非法');
   });
 
-  it('detectBypass:settings 含 nightowl allow → true;无配置无进程 → false/null', () => {
-    // 无 settings 文件,且当前测试进程不是 agy → ps 扫不到 → false
-    expect(antigravity.detectBypass()).toBe(false);
+  it('detectBypass:无 settings → null(unknown);init 后含 nightowl allow → true', () => {
+    expect(antigravity.detectBypass()).toBeNull();
     antigravity.writePermissions(root, 'project');
     expect(antigravity.detectBypass()).toBe(true);
   });

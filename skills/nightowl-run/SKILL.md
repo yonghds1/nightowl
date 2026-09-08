@@ -85,7 +85,7 @@ while True:
          直接走"审查 → 测试 → done",不再实现/合并
        - 若输出 `# RESUME in_progress <id>` → 无实现残留:按正常任务派实现子代理。
          但若 step a 的 sweep 输出里该任务有残留 worktree(普通分支名含任务 id;
-         detached 用 `git log -1 <hash> --oneline` 看 commit message 是否含任务 id),
+         detached 用 `git log -1 <hash> --oneline` 看 commit message 是否含 `[#<任务id>]` 标记),
          先按 step a 的回收流程合回主分支并删除,再重派实现
        - 否则解析普通输出(格式见下"next 输出解析")
     d. 派实现子代理:
@@ -149,8 +149,8 @@ VERIFY: {VERIFY_COMMANDS 或无}
 | **1. 实现** | 在 worktree 里写代码 + 测试 | 实现子代理 | 功能完成 |
 | **2. 代码审查** | 审查子代理 review 改动 | 独立的审查子代理 | 无 P0/P1 问题 |
 | **3. 测试** | 跑 verify 命令(单测/集成/构建) | 实现子代理或主代理 | 全部通过;有 verify 命令的任务,`done` 前脚本校验 verify_passed(**测试关口**,`--force` 跳过) |
-| **4. 提交** | git add + commit(带任务 id) | 实现子代理 | commit 完成 |
-| **5. 合并** | 把 worktree 分支 commit 合回主分支,**然后立即删除该 worktree**(`git worktree remove <路径>` + `git branch -d <分支>`) | 主代理 | 主分支包含该任务,`git worktree list` 里该任务 worktree **已消失** |
+| **4. 提交** | git add + commit(message 含 `[#<任务id>]` 标记) | 实现子代理 | commit 完成 |
+| **5. 合并** | 把 worktree 分支 commit 合回主分支,**然后立即删除该 worktree**(`git worktree remove <路径>` + `git branch -d <分支>`) | 主代理 | 主分支含该 `[#id]` commit,`git worktree list` 里该任务 worktree **已消失** |
 
 **审查子代理独立于实现子代理** —— 实现者不审查自己写的代码,这是代码审查的第一原则。
 
@@ -201,7 +201,7 @@ prompt 格式(用 next 输出的字段填充):
 2. 按照任务描述实现功能
 3. 写测试覆盖关键逻辑
 4. 跑 verify 直到通过(最多 {retry_budget} 次)
-5. 通过后 git add + git commit(commit message 带任务 id)
+5. 通过后 git add + git commit(commit message 含 `[#<任务id>]` 标记,如 `[#T1] 实现 string_reverse`)
 6. verify 失败:自己 debug + retry
 7. retry 耗尽仍失败:不要 commit,报告失败原因(含完整错误输出)
 8. 完成后报告:改了哪些文件、commit hash、用时

@@ -71,7 +71,7 @@ nightowl status
 - `nightowl next` 取下一个任务：输出调度协议（`WORKTREE_ROOT` / 制表符字段 / `PRD_PATH` / `DESCRIPTION` / `ACCEPTANCE` / `VERIFY`），并带续跑检测（`# RESUME_MERGE` / `# RESUME_COMMITTED` / `# RESUME in_progress`）
 - `nightowl review <id> --result PASS` 记录审查（`--level full|light`，多轮结果进 history）
 - `nightowl verify <id>` 跑验收命令，通过记录 `verify_passed`
-- `nightowl done <id> <actual_min>` 标记完成，**审查关口 + 测试关口**校验（`--force` 跳过）
+- `nightowl done <id> <actual_min>` 标记完成，**审查关口 + 测试关口 + git 核验**（校验主分支确有含 `[#<id>]` 标记的 commit；Claude 仅警告、其余平台默认阻断，`--require-commit` 可强制所有平台，`--force` 跳过全部）
 - `nightowl block <id> <reason>` 阻塞（立即保存 checkpoint）
 - `nightowl sweep` 清查残留 worktree（中断续跑先回收半成品）
 - `nightowl push` 推送未推送的 commit（`PUSH_OK` / `PUSH_NOTHING` / `PUSH_SKIPPED_NO_REMOTE`）
