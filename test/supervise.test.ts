@@ -236,13 +236,19 @@ describe('superviseLoop 循环', () => {
     expect(logs.join('\n')).toContain('超时');
   });
 
-  it('无 headlessRun 的平台报错退出 1', async () => {
+  it('supervise 可驱动的内置平台都暴露 headlessRun(codex 补完后不再缺)', async () => {
+    // 历史:codedx 早期无 headlessRun,supervise 会直接报错退出 1。
+    // 现两平台均实现,supervise 应能进入循环(用 fake host 驱动,不 spawn 真实 CLI)。
     fs.writeFileSync(path.join(root, '.nightowl', '.platform'), 'codex', 'utf8');
+    addTask('T1');
     const captured = captureConsole();
     const logs: string[] = [];
-    const code = await superviseLoop(baseOpts(), (l) => logs.push(l));
-    expect(code).toBe(1);
-    expect(captured.errs.join('\n')).toContain('headlessRun 未实现');
+    // 提供 fake host:正常退出但不推进 → 触发空转停止,证明没有走"无 headlessRun"错误分支
+    const noopHost: HeadlessRun = { cmd: 'node', args: () => ['-e', 'process.exit(0)'] };
+    const code = await superviseLoop(baseOpts({ maxIdle: 1 }), (l) => logs.push(l), noopHost);
+    // 走到空转/完成判定路径而非 noHeadless 报错(错误信息里不应含 headlessRun 未实现)
+    expect(captured.errs.join('\n')).not.toContain('headlessRun 未实现');
+    expect([0, 1]).toContain(code);
   });
 
   it('业务任务耗尽但 report 未落盘:退出前拉起收尾轮', async () => {

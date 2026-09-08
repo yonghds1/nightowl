@@ -5,9 +5,9 @@ description: 静默执行任务池的核心子技能:自动派子代理逐任务
 
 # Nightowl Run — 静默执行任务池
 
-run 阶段:用户说"开工"后进入自主调度循环,全程静默。**调度循环是代理(即你)用 Agent 工具 + Bash 执行,不是脚本自动跑**。**所有操作自动确认,无需用户交互,不向用户提问。**
+run 阶段:用户说"开工"后进入自主调度循环,全程静默。**调度循环是代理(即你)执行的,不是脚本自动跑**。**所有操作自动确认,无需用户交互,不向用户提问。**
 
-> 编排说明:run 的调度循环当前按 Claude Code 机制(Agent 工具 / worktree 隔离 / checkpoint 续跑)编写;Codex 平台的支持为后续版本(差异:agents TOML 子代理、无斜杠命令)。
+> 编排说明:本技能正文宿主无关;子代理派发方式、worktree 生命周期等差异由 `nightowl init` 铺入时按平台渲染(占位符替换),不同 agent 平台得到同一流程的本地化版本。
 
 ## 开工:权限模式自检
 
@@ -18,8 +18,8 @@ run 阶段:用户说"开工"后进入自主调度循环,全程静默。**调度�
 1. 运行 `nightowl selfcheck` 检查权限模式,**不要凭印象猜,以命令输出为准**:
    - 输出 `PERMISSION_MODE: bypass` → 通过,继续。
    - 输出 `PERMISSION_MODE: not_bypass` / `unknown` → 立即中止,提示:
-     "run 需以无权限确认模式启动(按平台:Claude `claude --dangerously-skip-permissions`,
-     Codex `codex exec --full-auto`),或切到 bypass 后重启会话让 hook 记录,
+     "run 需以无权限确认模式启动({{PLATFORM_RELAUNCH}}),
+     或切到 bypass 后重启会话让 hook 记录,
      否则 run 阶段会弹权限确认,破坏静默。先走 nightowl-plan 规划流程,或切到 bypass 后重新开工。"
    - 说明:PreToolUse hook 需 `nightowl init` 装好且**新会话**才生效;启动参数型 bypass
      由 selfcheck 兜底读进程 cmdline 检测,未装 hook 也能判断。
@@ -89,8 +89,7 @@ while True:
          先按 step a 的回收流程合回主分支并删除,再重派实现
        - 否则解析普通输出(格式见下"next 输出解析")
     d. 派实现子代理:
-       Agent 工具,subagent_type="general-purpose",
-       mode="bypassPermissions" (所有操作自动确认),isolation="worktree"
+       {{PLATFORM_SUBAGENT_D}}
        prompt 模板见下"实现子代理"
     e. 子代理完成后,执行"每个任务的完整闭环"(见下):
        实现 → 审查 → 测试 → 提交 → 合并回主分支
@@ -170,10 +169,7 @@ git cherry main <worktree分支>          # '+' 表示该分支有 main 没有�
 
 ### 实现子代理
 
-Agent 工具调用参数:
-- subagent_type: "general-purpose"
-- mode: "bypassPermissions"
-- isolation: "worktree"
+{{PLATFORM_SUBAGENT_CALL}}
 
 prompt 格式(用 next 输出的字段填充):
 
@@ -213,7 +209,7 @@ prompt 格式(用 next 输出的字段填充):
 # 权限说明
 - 所有操作自动确认,无需用户交互
 - 文件读写、命令执行、Git 操作均自动通过
-- 目录范围: 当前工作区(项目根目录及其所有子目录)
+- {{PLATFORM_SUBAGENT_DIR}}
 ```
 
 ### 审查子代理
@@ -281,14 +277,14 @@ commit: {commit_hash}
 run 阶段可脱离交互会话,交给外部驱动引擎 `nightowl supervise` 反复拉起主会话推进任务池:
 
 - **形态**:`nightowl supervise [--interval-sec N] [--timeout-min M] [--max-idle N] [--once]`
-  - 默认:循环拉起 `claude -p --continue --dangerously-skip-permissions --append-system-prompt <续跑指令>`
+  - 默认:按平台循环拉起 headless 会话({{PLATFORM_HEADLESS}})
     延续主会话;**任务池全部完成自动退出**;中断后再启动即从断点续(resume 幂等,不重复实现)
   - `--once`:只跑一轮就退出(调试/想分次推进时)
 - **每轮主会话做什么**:supervise 每轮注入精简续跑指令,主会话按本技能继续调度循环
   (status → sweep → next → 实现/审查子会话 → verify → done),推进到上下文接近上限或
   本轮可停时自然结束本轮;supervise 用确定性代码判定进度(completed/blocked 变化),再进下一轮
-- **续接**:`--continue` 延续最近主会话。首轮无历史会话时 claude 会静默新开会话;
-  supervise 在 `--continue` 失败时回退去掉 `--continue` 新开会话
+- **续接**:延续最近主会话(平台参数见 nightowl 铺入的本技能版本)。首轮无历史会话可续时,
+  supervise 在续接快速失败后回退为新开会话
 - **韧性**:每轮结束状态已落盘 `.nightowl/`;会话失败自动指数退避重试(retry_budget 次后
   block 该任务);连续无进展达 `--max-idle` 轮停止;单轮超时(`--timeout-min`)强制结束本轮
 - **收尾兜底**:业务任务耗尽后,supervise 检查 `.nightowl/nightowl.report.md` 是否已由主会话
@@ -304,13 +300,12 @@ run 阶段可脱离交互会话,交给外部驱动引擎 `nightowl supervise` �
 当没有可执行任务时:
 
 ```
-0. 先清残留 worktree: `git worktree list` 若不止 main,逐个把未合入的 commit 合回主分支后
-   `git worktree remove`,确保收尾时工作区干净
+0. 先清残留 worktree: `git worktree list` 若不止 main,逐个把未合入的 commit 合回主分支后删除 worktree,确保收尾时工作区干净
 1. 检查是否有"未推送"的 commit:
    git log origin/<branch>..HEAD --oneline
 2. 如果有未推送的改动:
    a. 可选:跑一次全量测试(如果时间允许)
-   b. git push origin <branch>   # 仅 bypass 下静默 push;非 bypass 不推,留给 plan 阶段处理
+   b. git push origin <branch>   # {{PLATFORM_PUSH_MODE}};不满足时不推,留给 plan 阶段处理
    c. 可选:如果是 feature 分支,建 PR(gh pr create)
 3. 没有远程仓库:
    - 检测到 git remote 为空 → 跳过推送,在报告里注明"未推送(无远程)"

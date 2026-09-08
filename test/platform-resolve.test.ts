@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { resolvePlatform, DEFAULT_PLATFORM, claude, codex } from '../src/platforms/index.js';
+import { resolvePlatform, DEFAULT_PLATFORM, claude, codex, opencode, antigravity } from '../src/platforms/index.js';
 
 let root: string;
 
@@ -18,6 +18,13 @@ describe('resolvePlatform 优先级', () => {
   it('显式 codex > 默认', () => {
     expect(resolvePlatform('codex', root)).toBe(codex);
     expect(resolvePlatform('claude', root)).toBe(claude);
+  });
+
+  it('注册 opencode/antigravity 后可显式解析', () => {
+    expect(resolvePlatform('opencode', root)).toBe(opencode);
+    expect(resolvePlatform('opencode', root).nonInteractiveCmd).toContain('--auto');
+    expect(resolvePlatform('antigravity', root)).toBe(antigravity);
+    expect(resolvePlatform('antigravity', root).nonInteractiveCmd).toContain('--dangerously-skip-permissions');
   });
 
   it('.platform 文件记录 > 默认;显式仍优先于文件', () => {

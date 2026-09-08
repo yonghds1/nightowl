@@ -18,7 +18,7 @@ nightowl init -u <你的名字>
 ```
 
 - `-u <你的名字>`:写入开发者身份到 `.nightowl/.developer`(本地文件)。身份已写入后可省略。
-- `--platform <claude|codex>`:目标 agent 平台,默认 claude(已 init 过则读 `.nightowl/.platform`);`--claude`/`--codex` 为快捷别名。
+- `--platform <id>`:目标 agent 平台(默认 claude;可用值见 `nightowl init --help`;已 init 过则读 `.nightowl/.platform`);`--claude`/`--codex` 等为快捷别名。
 
 在项目根目录的 `.nightowl/` 下生成 `nightowl.tasks.yaml`、`nightowl.state.yaml`、`nightowl.log`;权限与技能按平台写入:Claude -> `.claude/`(settings.json 权限白名单 + skills),Codex -> `.codex/`(config.toml 静默权限 + hooks.json + skills)。plan `add`/`status`/run 调度不再弹权限确认。
 
@@ -44,7 +44,7 @@ nightowl analyze
 
 **提问规范(每一题都必须遵守)**:
 
-1. 用 AskUserQuestion 工具提问,绝不用纯文本提问
+1. {{PLATFORM_ASK}}
 2. 一次只问一题,等用户回答再问下一题
 3. 每题 2-4 个具体选项,选项 = 真实可选方向(泛泛的"是/否"不算合格选项),推荐项放第一个并在描述里给推荐理由
 4. 代码库/文档能回答的,自己探索,不占用户一题
@@ -137,7 +137,7 @@ nightowl add \
 用户说"开工"时,先把 run 阶段的自检失败前置到 plan -- 三项检查全过才移交 nightowl-run,用户说开工就真的能开工:
 
 1. **工作区干净**:`git status` 已跟踪文件有未提交修改 -> 先让用户提交或 stash,不带半成品开工(未跟踪文件不阻断,分类规则见 nightowl-run)
-2. **权限模式**:运行 `nightowl selfcheck`,输出非 `PERMISSION_MODE: bypass` -> 告知按平台以无权限确认模式重启会话(Claude `claude --dangerously-skip-permissions`,Codex `codex exec --full-auto`),否则 run 阶段会弹权限确认,破坏静默
+2. **权限模式**:运行 `nightowl selfcheck`,输出非 `PERMISSION_MODE: bypass` -> 告知以无权限确认模式重启会话({{PLATFORM_RELAUNCH}}),否则 run 阶段会弹权限确认,破坏静默
 3. **任务池就绪**:`nightowl status` 正常展示任务清单
 
 三项全过,任务池移交 run 阶段由 `nightowl-run` 接手(全程静默,收尾默认出报告)。

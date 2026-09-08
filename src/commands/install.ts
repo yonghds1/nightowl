@@ -5,7 +5,11 @@ import type { InstallStatus } from '../platforms/types.js';
 import { TEMPLATE_HASHES_FILE } from '../paths.js';
 
 function sha256(file: string): string {
-  return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+  return sha256Str(fs.readFileSync(file));
+}
+
+function sha256Str(buf: Buffer | string): string {
+  return crypto.createHash('sha256').update(buf).digest('hex');
 }
 
 /** .template-hashes.json 的 schema:hash 记录 + 技能来源版本戳。 */
@@ -40,6 +44,8 @@ export function saveTemplateHashes(rec: TemplateHashes, db: string = TEMPLATE_HA
  * 已存在且内容一致 → nochange;内容不同且未被本地定制 → updated(模板升级);
  * 被本地定制过(记录 hash 与当前 dst 不符)→ skipped(--force 强制覆盖 → forced);
  * 包内源文件缺失(安装损坏)→ missing。
+ * transform:铺入前对模板内容做渲染(平台占位替换);hash 一律对"渲染后的产物"计算,
+ * 本地定制检测逻辑不变。切换平台重跑 init 时渲染产物变化,走 updated 路径自动重铺。
  */
 export function installFile(
   src: string,
@@ -47,10 +53,16 @@ export function installFile(
   hashRec: Record<string, string>,
   key: string,
   force: boolean,
+  transform?: (content: string) => string,
 ): InstallStatus {
   if (!fs.existsSync(src)) return 'missing';
   fs.mkdirSync(path.dirname(dst), { recursive: true });
-  const srcHash = sha256(src);
+  const content = transform ? transform(fs.readFileSync(src, 'utf8')) : null;
+  const write = (): void => {
+    if (content !== null) fs.writeFileSync(dst, content, 'utf8');
+    else fs.copyFileSync(src, dst);
+  };
+  const srcHash = content !== null ? sha256Str(content) : sha256(src);
   if (fs.existsSync(dst)) {
     const dstHash = sha256(dst);
     if (dstHash === srcHash) {
@@ -61,16 +73,16 @@ export function installFile(
     const rec = hashRec[key];
     if (rec !== undefined && rec === dstHash) {
       // dst 仍是上次铺入的样子,src 变了 → 包升级,覆盖
-      fs.copyFileSync(src, dst);
+      write();
       hashRec[key] = srcHash;
       return 'updated';
     }
     if (!force) return 'skipped';
-    fs.copyFileSync(src, dst);
+    write();
     hashRec[key] = srcHash;
     return 'forced';
   }
-  fs.copyFileSync(src, dst);
+  write();
   hashRec[key] = srcHash;
   return 'installed';
 }

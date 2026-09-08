@@ -31,6 +31,11 @@ export interface Platform {
   name: string;
   /** 宿主配置目录名,如 '.claude' / '.codex'。 */
   configDir: string;
+  /**
+   * 技能模板的宿主适配变量(key 不含花括号):铺入 skills 下的 SKILL.md 时,
+   * 正文里的占位符 {{K}} 替换为对应值。占位符只出现在技能正文,值本身宿主无关化。
+   */
+  templateVars(projectRoot: string): Record<string, string>;
   /** 把 skills / 斜杠命令 / hook 脚本铺到目标项目的宿主目录(复用 installFile 的 hash 机制)。 */
   installTemplates(
     projectRoot: string,
@@ -43,6 +48,6 @@ export interface Platform {
   detectBypass(): boolean | null;
   /** 无交互启动命令(用于提示文案)。 */
   nonInteractiveCmd: string;
-  /** 无人值守 headless 驱动(supervise 用)。未实现(如 codex)则为 undefined。 */
+  /** 无人值守 headless 驱动(supervise 用)。宿主无对应机制则为 undefined。 */
   headlessRun?: HeadlessRun;
 }

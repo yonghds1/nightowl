@@ -1,7 +1,7 @@
 {
   "name": "@yonghds1/nightowl",
   "version": "0.3.2",
-  "description": "Nightowl - plan 规划任务 / run 静默修改 / report 收尾汇总的 Claude Code 调度技能",
+  "description": "Nightowl - plan 规划任务 / run 静默修改 / report 收尾汇总的多 agent 调度技能（Claude Code / Codex / OpenCode / Antigravity）",
   "type": "module",
   "main": "./dist/cli.js",
   "bin": {
@@ -27,6 +27,10 @@
   },
   "keywords": [
     "claude",
+    "codex",
+    "opencode",
+    "antigravity",
+    "agent",
     "skill",
     "cli",
     "commander",
