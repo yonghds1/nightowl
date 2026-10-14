@@ -34,3 +34,4 @@ coverage/
 
 # Nightowl (用户项目)
 .nightowl/
+.test-sandbox/

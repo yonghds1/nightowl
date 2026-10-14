@@ -10,12 +10,12 @@ Multi-agent host support: **Claude Code / Codex / OpenCode / Antigravity CLI** (
 
 | Platform | alias | Skill install | Silent/permission | headless (supervise) | Status |
 |----------|-------|---------------|-------------------|----------------------|--------|
-| Claude Code | `--claude` (default) | `.claude/skills/` | settings.json allow + PreToolUse hook | `claude -p --continue` | ✅ battle-tested |
-| Codex | `--codex` | `.agents/skills/` | `.codex/config.toml` (never + workspace-write + network) + hooks.json | `codex exec resume --last` | 🧪 per-docs, not yet verified on real CLI |
-| OpenCode | `--opencode` | `.agents/skills/` | `opencode.json` permission rules | `opencode run --auto --continue` | 🧪 per-docs, not yet verified on real CLI |
-| Antigravity CLI | `--antigravity` | `.agents/skills/` + `.agents/agents/` | global `~/.gemini/antigravity-cli/settings.json` allow | `agy -p --dangerously-skip-permissions --continue` | 🧪 per-docs, not yet verified on real CLI |
+| Claude Code | `--claude` (default) | `.claude/skills/` | settings.json allow + PreToolUse hook | `claude -p --continue` | ✅ verified (2.1.296) |
+| Codex | `--codex` | `.agents/skills/` | `.codex/config.toml` (never + workspace-write + network) + hooks.json | `codex exec resume --last` | ✅ verified (0.162.1) |
+| OpenCode | `--opencode` | `.agents/skills/` | `opencode.json` permission rules | `opencode run --auto --continue` | ✅ verified (1.18.35) |
+| Antigravity CLI | `--antigravity` | `.agents/skills/` + `.agents/agents/` | global `~/.gemini/antigravity-cli/settings.json` allow | `agy -p --dangerously-skip-permissions --continue` | ✅ verified (1.3.4) |
 
-> Codex/OpenCode/Antigravity share `.agents/skills/` (a cross-agent standard dir) — one install is read by all three. Skill bodies are host-agnostic; `init` renders per-platform differences (subagent dispatch / asking tool / launch commands) from `{{PLATFORM_*}}` placeholders. Design & research: [`docs/multi-agent-plan.md`](docs/multi-agent-plan.md).
+> Codex/OpenCode/Antigravity share `.agents/skills/` (a cross-agent standard dir) — one install is read by all three. Skill bodies are host-agnostic; `init` renders per-platform differences (subagent dispatch / asking tool / launch commands) from `{{PLATFORM_*}}` placeholders. Real CLI verification log: [`docs/platform-verification.md`](docs/platform-verification.md). Design & research: [`docs/multi-agent-plan.md`](docs/multi-agent-plan.md).
 
 ## Install
 

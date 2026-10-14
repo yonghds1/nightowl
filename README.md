@@ -10,12 +10,12 @@
 
 | 平台 | init 别名 | 技能铺入 | 静默/权限 | headless（supervise） | 状态 |
 |------|-----------|----------|-----------|----------------------|------|
-| Claude Code | `--claude`（默认） | `.claude/skills/` | settings.json allow + PreToolUse hook | `claude -p --continue` | ✅ 已实战 |
-| Codex | `--codex` | `.agents/skills/` | `.codex/config.toml`（never+workspace-write+网络）+ hooks.json | `codex exec resume --last` | 🧪 按文档实现，未实机验证 |
-| OpenCode | `--opencode` | `.agents/skills/` | `opencode.json` permission 规则 | `opencode run --auto --continue` | 🧪 按文档实现，未实机验证 |
-| Antigravity CLI | `--antigravity` | `.agents/skills/` + `.agents/agents/` | 全局 `~/.gemini/antigravity-cli/settings.json` allow | `agy -p --dangerously-skip-permissions --continue` | 🧪 按文档实现，未实机验证 |
+| Claude Code | `--claude`（默认） | `.claude/skills/` | settings.json allow + PreToolUse hook | `claude -p --continue` | ✅ 已实测 (2.1.296) |
+| Codex | `--codex` | `.agents/skills/` | `.codex/config.toml`（never+workspace-write+网络）+ hooks.json | `codex exec resume --last` | ✅ 已实测 (0.162.1) |
+| OpenCode | `--opencode` | `.agents/skills/` | `opencode.json` permission 规则 | `opencode run --auto --continue` | ✅ 已实测 (1.18.35) |
+| Antigravity CLI | `--antigravity` | `.agents/skills/` + `.agents/agents/` | 全局 `~/.gemini/antigravity-cli/settings.json` allow | `agy -p --dangerously-skip-permissions --continue` | ✅ 已实测 (1.3.4) |
 
-> Codex/OpenCode/Antigravity 共享 `.agents/skills/`（跨 agent 标准目录），一次铺入三家可读。技能正文宿主无关，`init` 按平台渲染差异段（子代理派发、提问工具、启动命令）。规划与机制调研见 [`docs/multi-agent-plan.md`](docs/multi-agent-plan.md)。
+> Codex/OpenCode/Antigravity 共享 `.agents/skills/`（跨 agent 标准目录），一次铺入三家可读。技能正文宿主无关，`init` 按平台渲染差异段（子代理派发、提问工具、启动命令）。真机实测记录详见 [`docs/platform-verification.md`](docs/platform-verification.md)，规划与机制调研见 [`docs/multi-agent-plan.md`](docs/multi-agent-plan.md)。
 
 ## 安装
 
