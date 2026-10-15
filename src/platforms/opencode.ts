@@ -5,7 +5,7 @@ import { installFile } from '../commands/install.js';
 import { renderTemplate } from './render.js';
 import type { InstallItem, PermissionsResult, Platform } from './types.js';
 
-const SKILLS = ['nightowl-plan', 'nightowl-run', 'nightowl-report'];
+const SKILLS = ['nightowl-plan', 'nightowl-run', 'nightowl-report', 'nightowl-verify'];
 
 // 注:OpenCode 配置/exec/子代理结构按官方文档(opencode.ai/docs/{skills,agents,permissions,cli})实现,
 // 本机无 opencode CLI,未做真实会话验证,待有环境的用户实测后修正。

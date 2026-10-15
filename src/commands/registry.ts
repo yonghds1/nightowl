@@ -17,6 +17,7 @@ import { createCheckpointCommand } from './checkpoint.js';
 import { createSetupPermissionsCommand } from './setup-permissions.js';
 import { createSelfcheckCommand } from './selfcheck.js';
 import { createSuperviseCommand } from './supervise.js';
+import { createWorktreeCommand } from './worktree.js';
 
 export type CommandFactory = () => Command;
 
@@ -40,4 +41,5 @@ export const COMMAND_FACTORIES: CommandFactory[] = [
   createSetupPermissionsCommand,
   createSelfcheckCommand,
   createSuperviseCommand,
+  createWorktreeCommand,
 ];

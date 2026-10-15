@@ -24,7 +24,7 @@ describe('antigravity platform', () => {
   it('installTemplates 铺 .agents/skills + .agents/agents 子代理定义', () => {
     const hashRec: Record<string, string> = {};
     const items = antigravity.installTemplates(root, hashRec, false);
-    for (const n of ['nightowl-plan', 'nightowl-run', 'nightowl-report']) {
+    for (const n of ['nightowl-plan', 'nightowl-run', 'nightowl-report', 'nightowl-verify']) {
       expect(fs.existsSync(path.join(root, '.agents', 'skills', n, 'SKILL.md'))).toBe(true);
     }
     for (const a of ['nightowl-implementer', 'nightowl-reviewer']) {

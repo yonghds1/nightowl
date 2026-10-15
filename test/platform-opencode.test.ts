@@ -19,7 +19,7 @@ describe('opencode platform', () => {
   it('installTemplates 铺 .agents/skills(兼容读取),不铺 hook 脚本', () => {
     const hashRec: Record<string, string> = {};
     const items = opencode.installTemplates(root, hashRec, false);
-    for (const n of ['nightowl-plan', 'nightowl-run', 'nightowl-report']) {
+    for (const n of ['nightowl-plan', 'nightowl-run', 'nightowl-report', 'nightowl-verify']) {
       expect(fs.existsSync(path.join(root, '.agents', 'skills', n, 'SKILL.md'))).toBe(true);
     }
     // OpenCode 无文件式 hook

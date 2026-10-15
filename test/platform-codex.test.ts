@@ -131,7 +131,7 @@ describe('codex platform', () => {
   it('installTemplates 铺 .agents/skills(官方扫描位)+ .codex/hook 脚本', () => {
     const hashRec: Record<string, string> = {};
     const items = codex.installTemplates(root, hashRec, false);
-    for (const n of ['nightowl-plan', 'nightowl-run', 'nightowl-report']) {
+    for (const n of ['nightowl-plan', 'nightowl-run', 'nightowl-report', 'nightowl-verify']) {
       expect(fs.existsSync(path.join(root, '.agents', 'skills', n, 'SKILL.md'))).toBe(true);
     }
     // 兼容旧路径不再使用

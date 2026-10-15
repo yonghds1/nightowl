@@ -88,13 +88,18 @@ while True:
          detached 用 `git log -1 <hash> --oneline` 看 commit message 是否含 `[#<任务id>]` 标记),
          先按 step a 的回收流程合回主分支并删除,再重派实现
        - 否则解析普通输出(格式见下"next 输出解析")
-    d. 派实现子代理:
-       {{PLATFORM_SUBAGENT_D}}
-       prompt 模板见下"实现子代理"
+     d. 建隔离区并派实现子代理:
+        先运行 `nightowl worktree setup <id>` 建立隔离工作区(优先用原生命令,
+        替代手写 `git worktree add`),再按平台方式派发:
+        {{PLATFORM_SUBAGENT_D}}
+        prompt 模板见下"实现子代理"
     e. 子代理完成后,执行"每个任务的完整闭环"(见下):
        实现 → 审查 → 测试 → 提交 → 合并回主分支
-       - 子代理在 worktree 分支上 commit 后,把 commit 合回当前分支
-         (git merge / git cherry-pick),然后 `git worktree remove` 删除 worktree
+        - 子代理在 worktree 分支上 commit 后,把 commit 合回当前分支
+          (推荐 `nightowl worktree merge <id>`,自动校验 `[#<id>]` 标记;
+          零散残留才用 git merge / git cherry-pick 手工回收),
+          然后用 `nightowl worktree cleanup <id>` 删除 worktree
+          (底层为 `git worktree remove` + `git branch -d`)
        - 审查裁决:解析审查子代理回复**首行**的裁决标记(REVIEW_PASS /
          REVIEW_FAIL / REVIEW_PASS_WITH_NITS)。解析不到 → 该轮审查作废,
          重新派审查子代理(最多 retry_budget 次);仍解析不到 → 视为 FAIL 打回。
@@ -150,20 +155,30 @@ VERIFY: {VERIFY_COMMANDS 或无}
 | **2. 代码审查** | 审查子代理 review 改动 | 独立的审查子代理 | 无 P0/P1 问题 |
 | **3. 测试** | 跑 verify 命令(单测/集成/构建) | 实现子代理或主代理 | 全部通过;有 verify 命令的任务,`done` 前脚本校验 verify_passed(**测试关口**,`--force` 跳过) |
 | **4. 提交** | git add + commit(message 含 `[#<任务id>]` 标记) | 实现子代理 | commit 完成 |
-| **5. 合并** | 把 worktree 分支 commit 合回主分支,**然后立即删除该 worktree**(`git worktree remove <路径>` + `git branch -d <分支>`) | 主代理 | 主分支含该 `[#id]` commit,`git worktree list` 里该任务 worktree **已消失** |
+| **5. 合并** | 把 worktree 分支 commit 合回主分支,**然后立即删除该 worktree**(推荐 `nightowl worktree merge <id>` 合回 + `nightowl worktree cleanup <id>` 删除;底层为 `git worktree remove <路径>` + `git branch -d <分支>`) | 主代理 | 主分支含该 `[#id]` commit,`nightowl worktree list` 里该任务 worktree **已消失** |
 
 **审查子代理独立于实现子代理** —— 实现者不审查自己写的代码,这是代码审查的第一原则。
 
-**第 5 道关不能省,且"合并"和"删除"必须成对完成**:worktree 里 commit 不会自动出现在主分支。若不合并回主分支,收尾推送推的是主分支,worktree 里的成果就丢了;**若只合并不删除**,worktree 目录和分支会留在磁盘上,一晚就残留十几个,占磁盘、污染 `git worktree list`(2026-08-10 实战教训:一晚残留 14 个)。合并 + `git worktree remove` 都完成后,主代理再运行 `nightowl done <id> <actual_min>` 记录完成,调度下一个任务。
+**第 5 道关不能省,且"合并"和"删除"必须成对完成**:worktree 里 commit 不会自动出现在主分支。若不合并回主分支,收尾推送推的是主分支,worktree 里的成果就丢了;**若只合并不删除**,worktree 目录和分支会留在磁盘上,一晚就残留十几个,占磁盘、污染 `git worktree list`(2026-08-10 实战教训:一晚残留 14 个)。推荐成对执行 `nightowl worktree merge <id>` + `nightowl worktree cleanup <id>`(底层对照为 git merge + `git worktree remove`);两者都完成后,主代理再运行 `nightowl done <id> <actual_min>` 记录完成,调度下一个任务。
 
-**worktree 生命周期**:每个任务在隔离 worktree 里实现,完成后**必须**把 commit 合回主分支并删除 worktree,否则会残留大量 worktree 目录和分支。检查是否残留:
+**worktree 生命周期(原生命令优先)**:每个任务在隔离 worktree 里实现,完成后**必须**把 commit 合回主分支并删除 worktree,否则会残留大量 worktree 目录和分支。
+
+| 阶段 | 推荐命令 | 说明 |
+|------|----------|------|
+| 派发前建隔离区 | `nightowl worktree setup <id>` | 替代手写 `git worktree add`,分支统一为 `nightowl/<id>` |
+| 完成时合回主分支 | `nightowl worktree merge <id>` | 自动校验分支含 `[#<id>]` 标记后以 no-ff 方式合回当前分支 |
+| 合并后/残留清理 | `nightowl worktree cleanup <id>` | 底层为 `git worktree remove <路径>` + `git branch -D <分支>`,删目录并删分支 |
+| 查看列表 | `nightowl worktree list` | 只列 `nightowl/` 前缀任务 worktree,空则输出 `WORKTREE_EMPTY` |
+
+检查是否残留:
 
 ```
-git worktree list                      # 看有哪些 worktree
+nightowl worktree list                 # 推荐:只看任务 worktree
+git worktree list                      # 底层对照:看全部 worktree
 git cherry main <worktree分支>          # '+' 表示该分支有 main 没有的提交
 ```
 
-清理单个残留: `git worktree remove <路径>` + `git branch -d <分支>`。
+清理单个残留(原生优先,底层对照):`nightowl worktree cleanup <id>`,等价底层为 `git worktree remove <路径>` + `git branch -d <分支>`。
 
 ## 子代理 prompt 模板
 
@@ -300,7 +315,7 @@ run 阶段可脱离交互会话,交给外部驱动引擎 `nightowl supervise` �
 当没有可执行任务时:
 
 ```
-0. 先清残留 worktree: `git worktree list` 若不止 main,逐个把未合入的 commit 合回主分支后删除 worktree,确保收尾时工作区干净
+0. 先清残留 worktree: `nightowl worktree list` 查看任务 worktree(底层对照 `git worktree list`),若有残留,逐个把未合入的 commit 合回主分支(`nightowl worktree merge <id>`)后删除 worktree(`nightowl worktree cleanup <id>`,底层为 `git worktree remove`),确保收尾时工作区干净
 1. 检查是否有"未推送"的 commit:
    git log origin/<branch>..HEAD --oneline
 2. 如果有未推送的改动:
@@ -336,7 +351,7 @@ nightowl --dir <项目根目录> report
 4. **测试驱动**:verify 是完成标准,不是可有可无
 5. **失败分级**:自动 retry → 耗尽 block → 写状态+报告(不向用户弹通知;状态落盘
    `.nightowl/`,收尾由 report 汇总),不无限重试
-6. **worktree 即用即删**:合并回主分支后立即 `git worktree remove` + `git branch -d`,不收尾不清零就不算闭环完成
+6. **worktree 即用即删**:合并回主分支后立即清理(推荐 `nightowl worktree cleanup <id>`;底层为 `git worktree remove` + `git branch -d`),不收尾不清零就不算闭环完成
 7. **静默契约**:run 阶段全程不向用户提问、不弹权限确认。开工权限自检要求 bypass
    模式,不满足不开工;收尾 push 仅在 bypass 下执行。一切"通知用户"类操作改为写
    状态文件 + report。plan=交互 / run=静默 / report=收尾默认,边界由三个子技能保证

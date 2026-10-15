@@ -87,7 +87,7 @@ describe('claude platform', () => {
   it('installTemplates 铺 .claude/skills + hook(不再铺命令)', () => {
     const hashRec: Record<string, string> = {};
     const items = claude.installTemplates(root, hashRec, false);
-    for (const n of ['nightowl-plan', 'nightowl-run', 'nightowl-report']) {
+    for (const n of ['nightowl-plan', 'nightowl-run', 'nightowl-report', 'nightowl-verify']) {
       expect(fs.existsSync(path.join(root, '.claude', 'skills', n, 'SKILL.md'))).toBe(true);
     }
     expect(fs.existsSync(path.join(root, '.claude', 'hooks', 'permission-mode.mjs'))).toBe(true);

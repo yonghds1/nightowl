@@ -6,7 +6,7 @@ import { installFile } from '../commands/install.js';
 import { renderTemplate } from './render.js';
 import type { InstallItem, PermissionsResult, Platform } from './types.js';
 
-const SKILLS = ['nightowl-plan', 'nightowl-run', 'nightowl-report'];
+const SKILLS = ['nightowl-plan', 'nightowl-run', 'nightowl-report', 'nightowl-verify'];
 
 // 注:以下 Codex 配置/hook/exec 结构按官方文档(learn.chatgpt.com / developers.openai.com/codex)实现,
 // 本机无 codex CLI,未做真实会话验证,待有 Codex 环境的用户实测后修正。

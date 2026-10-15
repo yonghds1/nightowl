@@ -6,7 +6,7 @@ import { installFile } from '../commands/install.js';
 import { renderTemplate } from './render.js';
 import type { InstallItem, PermissionsResult, Platform } from './types.js';
 
-const SKILLS = ['nightowl-plan', 'nightowl-run', 'nightowl-report'];
+const SKILLS = ['nightowl-plan', 'nightowl-run', 'nightowl-report', 'nightowl-verify'];
 
 // Claude Code 权限规则:写入 .claude/settings.json 的 permissions.allow,
 // 让 plan/run 阶段的 nightowl 与 git 命令不再弹权限确认。

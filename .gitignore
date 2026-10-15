@@ -29,7 +29,8 @@ npm-debug.log*
 coverage/
 .nyc_output/
 
-# Claude Code
+# Agent Workspace & Operations
+.agents/
 .serena/
 
 # Nightowl (用户项目)
