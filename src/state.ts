@@ -17,6 +17,13 @@ export interface Review {
   at: string;
 }
 
+export interface VerifyPassed {
+  at: string;
+  commands: string[];
+  head?: string;
+  dirty_diff_hash?: string;
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -30,7 +37,7 @@ export interface Task {
   verify?: string[];
   prd_path?: string;
   actual_min?: number;
-  verify_passed?: { at: string; commands: string[] };
+  verify_passed?: VerifyPassed;
   review?: Review;
   review_history?: Review[];
 }

@@ -65,6 +65,8 @@ export function renderPrd(args: AddOptions, task: Task): string | null {
   return path.join('.nightowl', 'tasks', assigneeDir, path.basename(taskDir), 'prd.md');
 }
 
+import { assertTaskId } from '../task-id.js';
+
 export function createAddCommand(): Command {
   return new Command('add')
     .description(t('add.desc'))
@@ -79,6 +81,15 @@ export function createAddCommand(): Command {
     .option('--verify <cmd>', t('add.verifyOption'), (v: string, acc: string[]) => acc.concat(v), [] as string[])
     .option('--slug <slug>', t('add.slugOption'))
     .action((args: AddOptions) => {
+      try {
+        assertTaskId(args.id);
+        for (const dep of args.dependsOn || []) {
+          assertTaskId(dep);
+        }
+      } catch (err: unknown) {
+        console.error((err as Error).message);
+        process.exit(1);
+      }
       const pool = loadPool();
       if (!pool) {
         console.error(t('common.noPool'));

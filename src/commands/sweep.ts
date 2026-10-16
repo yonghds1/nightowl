@@ -41,10 +41,15 @@ export function createSweepCommand(): Command {
     .action(() => {
       const wt = git(['worktree', 'list', '--porcelain']);
       if (wt.code !== 0) {
-        console.log('SWEEP_CLEAN');
-        return;
+        console.error(`SWEEP_FAIL: git worktree list failed: ${wt.stderr || wt.stdout}`);
+        process.exit(1);
       }
-      const repoRoot = git(['rev-parse', '--show-toplevel']).stdout;
+      const topLevel = git(['rev-parse', '--show-toplevel']);
+      if (topLevel.code !== 0) {
+        console.error(`SWEEP_FAIL: git rev-parse failed: ${topLevel.stderr || topLevel.stdout}`);
+        process.exit(1);
+      }
+      const repoRoot = topLevel.stdout;
       let found = false;
       for (const w of parsePorcelain(wt.stdout)) {
         // 主 worktree 与未诞生(HEAD 全 0)的 worktree 无可判定 commit,跳过

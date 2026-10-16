@@ -1,8 +1,10 @@
 import { Command } from 'commander';
-import { existsSync, mkdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { git } from '../git.js';
 import { getBaseDir } from '../paths.js';
+import { loadPool } from '../state.js';
+import { assertTaskId } from '../task-id.js';
 
 export function getWorktreePath(id: string): string {
   return path.join(getBaseDir(), 'worktrees', id);
@@ -26,12 +28,26 @@ export function createWorktreeCommand(): Command {
     .argument('<id>')
     .option('--base <branch>', '基于的分支', undefined)
     .action((id: string, opts: { base?: string }) => {
+      assertTaskId(id);
       const targetDir = getWorktreePath(id);
       const branch = getWorktreeBranch(id);
+
       if (existsSync(targetDir)) {
-        console.error(`WORKTREE_EXISTS: ${targetDir}`);
-        return;
+        // 自愈孤儿空目录: 若是空目录则安全清理并重建
+        try {
+          const files = readdirSync(targetDir);
+          if (files.length === 0) {
+            rmSync(targetDir, { recursive: true, force: true });
+          } else {
+            console.error(`WORKTREE_EXISTS: ${targetDir}`);
+            process.exit(1);
+          }
+        } catch {
+          console.error(`WORKTREE_EXISTS: ${targetDir}`);
+          process.exit(1);
+        }
       }
+
       const parent = path.dirname(targetDir);
       if (!existsSync(parent)) mkdirSync(parent, { recursive: true });
 
@@ -60,11 +76,26 @@ export function createWorktreeCommand(): Command {
     .argument('<id>')
     .option('--no-strict', '跳过 commit 标记检查')
     .action((id: string, opts: { strict: boolean }) => {
+      assertTaskId(id);
       const branch = getWorktreeBranch(id);
       if (!branchExists(branch)) {
         console.error(`WORKTREE_MERGE_FAIL: branch not found: ${branch}`);
         process.exit(1);
       }
+
+      // 验证回执强校验: 比对当前分支的 HEAD 与验证记录是否一致
+      const pool = loadPool();
+      const task = pool?.pool.find((t) => t.id === id);
+      if (task?.verify?.length && task.verify_passed?.head) {
+        const currentBranchHead = git(['rev-parse', branch]).stdout.trim();
+        if (currentBranchHead && currentBranchHead !== task.verify_passed.head) {
+          console.error(
+            `VERIFY_RECORD_STALE: branch ${branch} 的 HEAD 与验证记录不一致(代码发生变动)，请重新运行 nightowl verify --id ${id}`,
+          );
+          process.exit(1);
+        }
+      }
+
       if (opts.strict) {
         const log = git(['log', '-1', '--grep', `\\[#${id}\\]`, branch]);
         if (log.code !== 0 || !log.stdout.trim()) {
@@ -91,20 +122,40 @@ export function createWorktreeCommand(): Command {
   cmd
     .command('cleanup')
     .argument('<id>')
-    .option('-f, --force', '彻底清理(含未提交改动)', true)
-    .action((id: string, opts: { force: boolean }) => {
+    .option('-f, --force', '彻底清理(含未提交改动)', false)
+    .option('--discard', '放弃并彻底清理未提交改动', false)
+    .action((id: string, opts: { force: boolean; discard: boolean }) => {
+      assertTaskId(id);
       const targetDir = getWorktreePath(id);
       const branch = getWorktreeBranch(id);
-      const forceArgs = opts.force ? ['--force'] : [];
+      const isForce = Boolean(opts.force || opts.discard);
+
+      // 安全模式: 若工作区有未提交代码且未显式指定 force/discard, 拒绝删除保留现场
+      if (existsSync(targetDir) && !isForce) {
+        const statusRes = git(['status', '--porcelain'], { cwd: targetDir });
+        if (statusRes.code === 0 && statusRes.stdout.trim()) {
+          console.error(
+            `WORKTREE_DIRTY: ${targetDir} 存在未提交修改，已保留现场以防代码丢失。\n   ↪ 如确认放弃代码并清理，请运行: nightowl worktree cleanup ${id} --discard`,
+          );
+          process.exit(1);
+        }
+      }
+
+      const forceArgs = isForce ? ['--force'] : [];
       const r = git(['worktree', 'remove', ...forceArgs, targetDir]);
       if (r.code !== 0 && existsSync(targetDir)) {
-        rmSync(targetDir, { recursive: true, force: true });
+        if (isForce) {
+          rmSync(targetDir, { recursive: true, force: true });
+        } else {
+          console.error(`WORKTREE_CLEANUP_FAIL: ${r.stderr || r.stdout}`);
+          process.exit(1);
+        }
       }
       if (branchExists(branch)) {
-        const rm = git(['branch', '-D', branch]);
-        if (rm.code !== 0) {
-          console.error(`WORKTREE_CLEANUP_FAIL: ${rm.stderr || rm.stdout}`);
-          process.exit(1);
+        const branchDeleteArg = isForce ? '-D' : '-d';
+        const rm = git(['branch', branchDeleteArg, branch]);
+        if (rm.code !== 0 && isForce) {
+          git(['branch', '-D', branch]);
         }
       }
       console.log(`WORKTREE_CLEANED: ${id}`);

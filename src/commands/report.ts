@@ -9,10 +9,118 @@ import {
   saveCheckpoint,
   clearCheckpoint,
   log,
+  Pool,
+  AppState,
 } from '../state.js';
 import { fmtDateTime, isoNow } from '../util.js';
 import { git } from '../git.js';
 import { t as tr } from '../i18n.js';
+
+export interface ExecutiveSummary {
+  verdict: 'READY' | 'CONDITIONAL' | 'BLOCKED';
+  verdictReason: string;
+  total: number;
+  done: number;
+  blocked: number;
+  pending: number;
+  p0Total: number;
+  p0Done: number;
+  totalEst: number;
+  totalActual: number;
+  deviationRatio: number | null; // null 表示无实际耗时记录
+  reviewFailRounds: number;
+  nitsCount: number;
+}
+
+export function buildExecutiveSummary(pool: Pool, state: AppState): ExecutiveSummary {
+  const total = pool.pool.length;
+  const doneIds = new Set(state.completed.map((c) => c.id));
+  const blockedIds = new Set(state.blocked.map((b) => b.id));
+  const done = doneIds.size;
+  const blocked = blockedIds.size;
+  const pending = total - done - blocked;
+
+  const p0Tasks = pool.pool.filter((t) => t.priority === 'P0');
+  const p0Total = p0Tasks.length;
+  const p0Done = p0Tasks.filter((t) => doneIds.has(t.id)).length;
+
+  let totalEst = 0;
+  let totalActual = 0;
+  let hasActual = false;
+
+  for (const c of state.completed) {
+    const t = pool.pool.find((x) => x.id === c.id);
+    if (t) {
+      totalEst += t.est_min;
+    }
+    if (typeof c.actual_min === 'number') {
+      totalActual += c.actual_min;
+      hasActual = true;
+    }
+  }
+
+  const deviationRatio = hasActual && totalEst > 0
+    ? (totalActual - totalEst) / totalEst
+    : null;
+
+  let reviewFailRounds = 0;
+  let nitsCount = 0;
+
+  for (const t of pool.pool) {
+    if (t.review?.result === 'PASS_WITH_NITS') nitsCount++;
+    if (t.review?.result === 'FAIL') reviewFailRounds++;
+    for (const h of t.review_history ?? []) {
+      if (h.result === 'FAIL') reviewFailRounds++;
+      if (h.result === 'PASS_WITH_NITS') nitsCount++;
+    }
+  }
+
+  let verdict: 'READY' | 'CONDITIONAL' | 'BLOCKED' = 'READY';
+  let verdictReason = '全部预期任务已验证完成并通过审查';
+
+  if (blocked > 0 || p0Done < p0Total) {
+    verdict = 'BLOCKED';
+    verdictReason = blocked > 0
+      ? `存在 ${blocked} 个阻塞任务待人工介入`
+      : `核心 P0 任务尚未全部完成 (${p0Done}/${p0Total})`;
+  } else if (reviewFailRounds > 0 || nitsCount > 0 || (deviationRatio !== null && deviationRatio > 0.3)) {
+    verdict = 'CONDITIONAL';
+    verdictReason = reviewFailRounds > 0
+      ? `存在 ${reviewFailRounds} 轮打回重试记录，需关注返工代码`
+      : nitsCount > 0
+      ? `存在 ${nitsCount} 项微调建议 (NITS)`
+      : `工时超出预估 ${Math.round((deviationRatio ?? 0) * 100)}%`;
+  }
+
+  return {
+    verdict,
+    verdictReason,
+    total,
+    done,
+    blocked,
+    pending,
+    p0Total,
+    p0Done,
+    totalEst,
+    totalActual,
+    deviationRatio,
+    reviewFailRounds,
+    nitsCount,
+  };
+}
+
+export function groupGitByTask(gitlog: string): Map<string, string[]> {
+  const map = new Map<string, string[]>();
+  for (const line of gitlog.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const match = trimmed.match(/\[#?([A-Za-z0-9_-]+)\]/);
+    const key = match ? `[#${match[1]}]` : '其他变更';
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)!.push(trimmed);
+  }
+  return map;
+}
 
 export function createReportCommand(): Command {
   return new Command('report')
@@ -27,10 +135,34 @@ export function createReportCommand(): Command {
       const doneIds = new Set(state.completed.map((c) => c.id));
       const blocked = state.blocked;
 
+      const summary = buildExecutiveSummary(pool, state);
+
       const lines: string[] = [];
       lines.push(tr('report.title'), '');
-      lines.push(tr('report.generatedAt', { time: fmtDateTime() }));
-      lines.push('', tr('report.sectionOverview'), '');
+      lines.push(tr('report.generatedAt', { time: fmtDateTime() }), '');
+
+      // 🚦 10 秒 Executive Summary 看板
+      const verdictIcon =
+        summary.verdict === 'READY' ? '🟢 【可发版】' : summary.verdict === 'CONDITIONAL' ? '🟡 【条件发版】' : '🔴 【不可发版】';
+      lines.push('## 🚦 决策看板 (Executive Summary)', '');
+      lines.push(`> **发版判定**: ${verdictIcon} — *${summary.verdictReason}*  `);
+      lines.push(
+        `> **任务进度**: 已完成 ${summary.done}/${summary.total} (P0: ${summary.p0Done}/${summary.p0Total}) | 阻塞: ${summary.blocked} | 待办: ${summary.pending}  `,
+      );
+      if (summary.deviationRatio !== null) {
+        const sign = summary.deviationRatio >= 0 ? '+' : '';
+        const pct = `${sign}${Math.round(summary.deviationRatio * 100)}%`;
+        lines.push(
+          `> **工时偏差**: 预估 ${summary.totalEst}m / 实际 ${summary.totalActual}m (${pct}) | 审查打回: ${summary.reviewFailRounds} 次 | 建议(Nits): ${summary.nitsCount} 个`,
+        );
+      } else {
+        lines.push(
+          `> **工时预估**: 预估总工时 ${summary.totalEst}m | 审查打回: ${summary.reviewFailRounds} 次 | 建议(Nits): ${summary.nitsCount} 个`,
+        );
+      }
+      lines.push('');
+
+      lines.push(tr('report.sectionOverview'), '');
       lines.push(tr('report.tableHeader'));
       lines.push('|------|--------|--------|------|------|------|');
       for (const t of pool.pool) {
@@ -76,10 +208,20 @@ export function createReportCommand(): Command {
         }
         lines.push('');
       }
-      const gitlog = git(['log', '--oneline', '-20']).stdout;
+
+      // Git log 按 [#id] 聚合分组呈现
+      const gitlog = git(['log', '--oneline', '-30']).stdout;
       if (gitlog.trim()) {
-        lines.push(tr('report.sectionGit'), '', '```', gitlog, '```', '');
+        lines.push(tr('report.sectionGit'), '');
+        const grouped = groupGitByTask(gitlog);
+        for (const [groupName, commits] of grouped.entries()) {
+          lines.push(`### ${groupName} (${commits.length} commits)`);
+          lines.push('```');
+          lines.push(commits.join('\n'));
+          lines.push('```', '');
+        }
       }
+
       // 原子写入
       const reportFile = REPORT_FILE();
       fs.mkdirSync(path.dirname(reportFile), { recursive: true });
@@ -98,8 +240,7 @@ export function createReportCommand(): Command {
         clearCheckpoint();
         log(tr('checkpoint.clearedAll'));
       } else {
-        saveCheckpoint(pool, state, { total, completed });
-        log(tr('checkpoint.finalSaved', { completed, total }));
+        saveCheckpoint(pool, state);
       }
 
       console.log(tr('report.written', { file: reportFile }));
