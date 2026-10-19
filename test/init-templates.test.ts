@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { installFile, installProjectTemplates } from '../src/commands/init.js';
 import { setBaseDir, getPkgVersion } from '../src/paths.js';
-import { claude } from '../src/platforms/claude.js';
+import { claude, codex, opencode, antigravity } from '../src/platforms/index.js';
 
 let root: string;
 let srcFile: string;
@@ -89,5 +89,30 @@ describe('installProjectTemplates 版本戳', () => {
     const raw = JSON.parse(fs.readFileSync(db, 'utf8'));
     expect(raw.skillsVersion).toBe(getPkgVersion());
     expect(raw.hashes['legacy-key']).toBe('old-hash');
+  });
+});
+
+
+describe('workflow skill installation', () => {
+  it.each([claude, codex, opencode, antigravity])('installs, renders, hashes and protects workflow skills for $id', (platform) => {
+    setBaseDir(path.join(root, '.nightowl'));
+    installProjectTemplates(platform, false);
+    const dir = platform.id === 'claude' ? '.claude' : '.agents';
+    const key = `${dir}/skills/nightowl-workflows/SKILL.md`;
+    const file = path.join(root, key);
+    const original = fs.readFileSync(file, 'utf8');
+    expect(original).toContain('name: nightowl-workflows');
+    expect(original).toContain('--intent');
+    expect(original).toContain('--template');
+    expect(original).not.toMatch(/\{\{[A-Z0-9_]+\}\}/);
+    const db = path.join(root, '.nightowl', '.template-hashes.json');
+    expect(JSON.parse(fs.readFileSync(db, 'utf8')).hashes[key]).toBeTruthy();
+    installProjectTemplates(platform, false);
+    expect(fs.readFileSync(file, 'utf8')).toBe(original);
+    fs.writeFileSync(file, 'custom workflow skill');
+    installProjectTemplates(platform, false);
+    expect(fs.readFileSync(file, 'utf8')).toBe('custom workflow skill');
+    installProjectTemplates(platform, true);
+    expect(fs.readFileSync(file, 'utf8')).toBe(original);
   });
 });

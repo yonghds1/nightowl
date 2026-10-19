@@ -11,6 +11,7 @@ const DOC_FILES = [
   'skills/nightowl-run/SKILL.md',
   'skills/nightowl-report/SKILL.md',
   'skills/nightowl-verify/SKILL.md',
+  'skills/nightowl-workflows/SKILL.md',
 ];
 
 // 宿主(Claude/Codex)的启动参数,不是 nightowl 选项;出现在技能提示文案里,单独校验"仍在文档中"
@@ -67,7 +68,7 @@ function collectNightowlOptions(text: string): Set<string> {
 }
 
 describe('SKILL frontmatter 结构', () => {
-  for (const d of ['plan', 'run', 'report', 'verify']) {
+  for (const d of ['plan', 'run', 'report', 'verify', 'workflows']) {
     it(`${d}: name/description 齐全,description 不过长`, () => {
       const lines = fs
         .readFileSync(path.join(pkgRoot(), 'skills', `nightowl-${d}`, 'SKILL.md'), 'utf8')

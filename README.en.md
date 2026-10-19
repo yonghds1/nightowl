@@ -56,6 +56,58 @@ nightowl add --id T1 --title "implement string_reverse" --priority P0 --est-min 
 nightowl status
 ```
 
+## Staged workflows
+
+Compile workflow YAML into a task pool for the existing scheduler, without a separate execution engine:
+
+```yaml
+name: feature-delivery
+stages:
+  - id: implement
+    agent: developer
+    gate_commands: ["npm run typecheck"]
+    tasks:
+      - id: CODE
+        title: Implement the feature
+        priority: P1
+        est_min: 30
+  - id: review
+    agent: reviewer
+    depends_on: [implement]
+    gate_commands: ["npm test"]
+    tasks:
+      - id: REVIEW
+        title: Review the feature
+        priority: P1
+        est_min: 15
+```
+
+```bash
+nightowl workflow generate --intent "Add login" --no-apply   # Infer a template
+nightowl workflow generate --intent "Inspect auth" --template audit --no-apply
+nightowl workflow generate --template bugfix --no-apply     # Explicit template
+nightowl workflow generate workflow.yaml            # Save workflow and replace the pool by default
+nightowl workflow generate workflow.yaml --no-apply # Save/validate only; leave the pool unchanged
+nightowl workflow generate --apply                  # Reapply the saved workflow
+nightowl workflow show                             # Print saved workflow YAML
+nightowl workflow list                             # List stages, agents, tasks and dependencies
+```
+
+`--template` accepts `feature`, `bugfix`, `refactor`, or `audit` and overrides Chinese/English `--intent` inference. Inference checks audit, then bugfix, then refactor keywords; other intents default to feature. A file cannot be combined with `--intent` / `--template`; empty intents and unknown templates fail before writing. Omitting all sources still reapplies the saved workflow.
+
+| Template | Stages (agent) |
+| --- | --- |
+| feature | design (architect) → implement (developer) → verify (tester) → review (reviewer) |
+| bugfix | diagnose (debugger) → fix (developer) → regression (tester) → review (reviewer) |
+| refactor | baseline (tester) → refactor (developer) → regression (tester) → review (reviewer) |
+| audit | inspect (auditor) → review (reviewer) → report (auditor) |
+
+Templates are editable scaffolds: save with `--no-apply`, refine actual tasks, acceptance criteria, estimates and gates, then run `generate --apply`. Default gates use `git diff --check`, `npm run typecheck`, and `npm test`; adapt them to the project before execution. A diff check does not prove business acceptance. Audit is read-only investigation and reporting, not automatic remediation. Generated IDs use `<TEMPLATE>-<STAGE>` and repeat across generations; use unique task IDs for new deliveries to avoid inheriting old execution state. `init` installs the `nightowl-workflows` skill on all four platforms; `nightowl-plan` routes staged work to it while simple tasks still use `nightowl add`.
+
+Workflows are saved to `.nightowl/nightowl.workflow.yaml`. Applying replaces `.nightowl/nightowl.tasks.yaml` but **never modifies the independent `nightowl.state.yaml` file** (including completed, blocked and in-progress entries; reused task IDs remain subject to their existing state). Existing `schedule` / `checkpoint` settings are retained unless the workflow overrides them; initialization defaults apply when no pool exists. Each stage needs at least one task. Task `status` defaults to `pending` and `depends_on` to an empty array.
+
+Stage `depends_on` references **stage IDs**; task `depends_on` references **task IDs**. Every prerequisite stage's task IDs are merged into each current task's dependencies and deduplicated. The stage `agent` overrides task `assignee`; `gate_commands` are merged into each task's `verify` and deduplicated. Compilation rejects duplicate stage/task IDs, missing references, stage cycles and cycles in the expanded task graph before overwriting files. Gates run through the existing `nightowl verify` command, not during generation.
+
 ## Usage (three phases)
 
 ### plan — analyze requirements interactively
@@ -95,6 +147,7 @@ nightowl status
 | `done` | Mark done (review + test gate) |
 | `block` | Block |
 | `schedule` | Scheduling time |
+| `workflow generate/show/list` | Compile, apply and inspect staged workflows |
 | `verify` | Run acceptance command |
 | `analyze` | Analyze project docs (produce project context) |
 | `review` | Record review result |

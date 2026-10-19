@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import yaml from 'js-yaml';
 import {
   POOL_FILE,
+  WORKFLOW_FILE,
   STATE_FILE,
   LOG_FILE,
   CHECKPOINT_FILE,
@@ -9,6 +10,8 @@ import {
   ensureBaseDir,
 } from './paths.js';
 import { fmtDateTime, isoNow } from './util.js';
+import { t } from './i18n.js';
+import { assertTaskId } from './task-id.js';
 
 export interface Review {
   result: string;
@@ -48,6 +51,24 @@ export interface Pool {
   };
   checkpoint: { enabled: boolean; write_every: number };
   pool: Task[];
+}
+
+/** Workflow tasks are declarative; status/dependencies default during compilation. */
+export interface WorkflowStage {
+  id: string;
+  name?: string;
+  agent: string;
+  depends_on?: string[];
+  gate_commands?: string[];
+  tasks: (Omit<Task, 'status' | 'depends_on'> & Partial<Pick<Task, 'status' | 'depends_on'>>)[];
+}
+
+export interface Workflow {
+  name: string;
+  description?: string;
+  schedule?: Pool['schedule'];
+  checkpoint?: Pool['checkpoint'];
+  stages: WorkflowStage[];
 }
 
 export interface CompletedEntry {
@@ -237,6 +258,178 @@ export function loadPool(): Pool | null {
   if (!fs.existsSync(f)) return null;
   const data = yaml.load(fs.readFileSync(f, 'utf8')) as Pool | null;
   return data ?? null;
+}
+
+export function loadWorkflow(): Workflow | null {
+  const f = WORKFLOW_FILE();
+  if (!fs.existsSync(f)) return null;
+  const data: unknown = yaml.load(fs.readFileSync(f, 'utf8'));
+  if (data === null || data === undefined) return null;
+  // Validate the expanded graph too: persisted workflows must always be compilable.
+  assertWorkflow(data);
+  workflowToPool(data);
+  return data;
+}
+
+export function saveWorkflow(workflow: Workflow): void {
+  workflowToPool(workflow);
+  atomicWrite(WORKFLOW_FILE(), yaml.dump(workflow, { noRefs: true }));
+}
+
+function workflowFieldError(field: string, expected: string): never {
+  throw new Error(t('workflow.invalidField', { field, expected: t(`workflow.expected.${expected}`) }));
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function assertString(value: unknown, field: string): asserts value is string {
+  if (typeof value !== 'string' || !value.trim()) workflowFieldError(field, 'string');
+}
+
+function assertStrings(value: unknown, field: string): void {
+  if (!Array.isArray(value)) workflowFieldError(field, 'strings');
+  for (const [i, item] of value.entries()) assertString(item, `${field}[${i}]`);
+}
+
+/** YAML is untrusted input; check its shape before compiling or writing either file. */
+function assertWorkflow(value: unknown): asserts value is Workflow {
+  if (!isRecord(value)) workflowFieldError('workflow', 'object');
+  assertString(value.name, 'name');
+  if (value.description !== undefined) assertString(value.description, 'description');
+  if (!Array.isArray(value.stages) || value.stages.length === 0) {
+    workflowFieldError('stages', 'nonEmptyArray');
+  }
+  for (const [i, stage] of value.stages.entries()) {
+    const field = `stages[${i}]`;
+    if (!isRecord(stage)) workflowFieldError(field, 'object');
+    assertString(stage.id, `${field}.id`);
+    assertTaskId(stage.id);
+    assertString(stage.agent, `${field}.agent`);
+    if (stage.name !== undefined) assertString(stage.name, `${field}.name`);
+    if (stage.depends_on !== undefined) assertStrings(stage.depends_on, `${field}.depends_on`);
+    if (stage.gate_commands !== undefined) assertStrings(stage.gate_commands, `${field}.gate_commands`);
+    if (!Array.isArray(stage.tasks) || stage.tasks.length === 0) {
+      workflowFieldError(`${field}.tasks`, 'nonEmptyArray');
+    }
+    for (const [j, task] of stage.tasks.entries()) {
+      const taskField = `${field}.tasks[${j}]`;
+      if (!isRecord(task)) workflowFieldError(taskField, 'object');
+      assertString(task.id, `${taskField}.id`);
+      assertTaskId(task.id);
+      assertString(task.title, `${taskField}.title`);
+      if (typeof task.priority !== 'string' || !['P0', 'P1', 'P2'].includes(task.priority)) {
+        workflowFieldError(`${taskField}.priority`, 'priority');
+      }
+      if (typeof task.est_min !== 'number' || !Number.isFinite(task.est_min) || task.est_min < 0) {
+        workflowFieldError(`${taskField}.est_min`, 'nonNegativeNumber');
+      }
+      for (const key of ['depends_on', 'verify']) {
+        if (task[key] !== undefined) assertStrings(task[key], `${taskField}.${key}`);
+      }
+      for (const key of ['status', 'assignee', 'description', 'acceptance', 'prd_path']) {
+        if (task[key] !== undefined) assertString(task[key], `${taskField}.${key}`);
+      }
+    }
+  }
+  if (value.schedule !== undefined) {
+    if (!isRecord(value.schedule)) workflowFieldError('schedule', 'object');
+    if (!Number.isInteger(value.schedule.retry_budget) || Number(value.schedule.retry_budget) < 0) {
+      workflowFieldError('schedule.retry_budget', 'nonNegativeInteger');
+    }
+  }
+  if (value.checkpoint !== undefined) {
+    if (!isRecord(value.checkpoint)) workflowFieldError('checkpoint', 'object');
+    if (typeof value.checkpoint.enabled !== 'boolean') workflowFieldError('checkpoint.enabled', 'boolean');
+    if (!Number.isInteger(value.checkpoint.write_every) || Number(value.checkpoint.write_every) < 1) {
+      workflowFieldError('checkpoint.write_every', 'positiveInteger');
+    }
+  }
+}
+
+/** Kahn's algorithm avoids recursion limits on large workflow/task graphs. */
+function assertWorkflowAcyclic(graph: Map<string, string[]>, kind: 'Stage' | 'Task'): void {
+  const remaining = new Map<string, number>();
+  const dependents = new Map<string, string[]>();
+  const ready: string[] = [];
+  for (const [id, deps] of graph) {
+    remaining.set(id, deps.length);
+    if (deps.length === 0) ready.push(id);
+    for (const dep of deps) {
+      const next = dependents.get(dep) ?? [];
+      next.push(id);
+      dependents.set(dep, next);
+    }
+  }
+  for (let i = 0; i < ready.length; i++) {
+    for (const id of dependents.get(ready[i]) ?? []) {
+      const count = (remaining.get(id) ?? 0) - 1;
+      remaining.set(id, count);
+      if (count === 0) ready.push(id);
+    }
+  }
+  if (ready.length !== graph.size) {
+    const ids = [...remaining].filter(([, count]) => count > 0).map(([id]) => id).join(', ');
+    throw new Error(t(`workflow.cycle${kind}`, { ids }));
+  }
+}
+
+/** Pure adapter: execution continues to use the existing Pool scheduler and state. */
+export function workflowToPool(
+  workflow: Workflow,
+  defaults?: Pick<Pool, 'schedule' | 'checkpoint'> | null,
+): Pool {
+  assertWorkflow(workflow);
+  const stages = new Map<string, WorkflowStage>();
+  const taskIds = new Set<string>();
+  for (const stage of workflow.stages) {
+    if (stages.has(stage.id)) throw new Error(t('workflow.duplicateStage', { id: stage.id }));
+    stages.set(stage.id, stage);
+    for (const task of stage.tasks) {
+      if (taskIds.has(task.id)) throw new Error(t('workflow.duplicateTask', { id: task.id }));
+      taskIds.add(task.id);
+    }
+  }
+
+  const stageGraph = new Map<string, string[]>();
+  for (const stage of workflow.stages) {
+    const deps = [...new Set(stage.depends_on ?? [])];
+    for (const dep of deps) {
+      if (!stages.has(dep)) throw new Error(t('workflow.unknownStage', { id: stage.id, dep }));
+    }
+    stageGraph.set(stage.id, deps);
+  }
+  assertWorkflowAcyclic(stageGraph, 'Stage');
+
+  const pool: Task[] = [];
+  for (const stage of workflow.stages) {
+    const inherited = (stageGraph.get(stage.id) ?? []).flatMap(
+      (id) => stages.get(id)?.tasks.map((task) => task.id) ?? [],
+    );
+    for (const task of stage.tasks) {
+      const deps = [...new Set([...(task.depends_on ?? []), ...inherited])];
+      for (const dep of deps) {
+        if (!taskIds.has(dep)) throw new Error(t('workflow.unknownTask', { id: task.id, dep }));
+      }
+      const verify = [...new Set([...(task.verify ?? []), ...(stage.gate_commands ?? [])])];
+      // Copy nested metadata too, so callers cannot mutate the workflow through its pool.
+      const compiled: Task = {
+        ...structuredClone(task),
+        status: task.status ?? 'pending',
+        depends_on: deps,
+        assignee: stage.agent,
+      };
+      if (verify.length || task.verify !== undefined || stage.gate_commands !== undefined) compiled.verify = verify;
+      pool.push(compiled);
+    }
+  }
+  assertWorkflowAcyclic(new Map(pool.map((task) => [task.id, task.depends_on])), 'Task');
+  return {
+    schedule: { ...(workflow.schedule ?? defaults?.schedule ?? { retry_budget: 2 }) },
+    checkpoint: { ...(workflow.checkpoint ?? defaults?.checkpoint ?? { enabled: true, write_every: 1 }) },
+    pool,
+  };
 }
 
 export function loadState(): AppState {

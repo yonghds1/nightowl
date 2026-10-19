@@ -5,7 +5,7 @@ import { installFile } from '../commands/install.js';
 import { renderTemplate } from './render.js';
 import type { InstallItem, PermissionsResult, Platform } from './types.js';
 
-const SKILLS = ['nightowl-plan', 'nightowl-run', 'nightowl-report', 'nightowl-verify'];
+import { PROJECT_SKILLS } from '../skills.js';
 
 // 注:OpenCode 配置/exec/子代理结构按官方文档(opencode.ai/docs/{skills,agents,permissions,cli})实现,
 // 本机无 opencode CLI,未做真实会话验证,待有环境的用户实测后修正。
@@ -37,7 +37,7 @@ function installTemplates(
   const skillsSrc = path.join(pkgRoot(), 'skills');
   const render = renderTemplate(OPENCODE_TEMPLATE_VARS);
   // OpenCode 兼容读取 .agents/skills(与 Codex/Antigravity 共享同一份铺入)
-  for (const name of SKILLS) {
+  for (const name of PROJECT_SKILLS) {
     const key = path.join('.agents', 'skills', name, 'SKILL.md');
     const dst = path.join(projectRoot, key);
     results.push({

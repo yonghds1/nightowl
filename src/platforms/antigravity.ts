@@ -6,7 +6,7 @@ import { installFile } from '../commands/install.js';
 import { renderTemplate } from './render.js';
 import type { InstallItem, PermissionsResult, Platform } from './types.js';
 
-const SKILLS = ['nightowl-plan', 'nightowl-run', 'nightowl-report', 'nightowl-verify'];
+import { PROJECT_SKILLS } from '../skills.js';
 
 // 注:Antigravity CLI(agy)的技能/子代理/headless/权限结构按官方文档
 // (antigravity.google/docs/{skills,cli/headless,cli/permissions,cli/subagents,hooks})实现,
@@ -44,7 +44,7 @@ function installTemplates(
   const skillsSrc = path.join(pkgRoot(), 'skills');
   const render = renderTemplate(ANTIGRAVITY_TEMPLATE_VARS);
   // 技能:官方 workspace 位置 .agents/skills
-  for (const name of SKILLS) {
+  for (const name of PROJECT_SKILLS) {
     const key = path.join('.agents', 'skills', name, 'SKILL.md');
     const dst = path.join(projectRoot, key);
     results.push({

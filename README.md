@@ -56,6 +56,58 @@ nightowl add --id T1 --title "实现 string_reverse" --priority P0 --est-min 15 
 nightowl status
 ```
 
+## 分阶段工作流
+
+将工作流 YAML 编译为现有调度器可执行的任务池，不引入新的执行引擎：
+
+```yaml
+name: feature-delivery
+stages:
+  - id: implement
+    agent: developer
+    gate_commands: ["npm run typecheck"]
+    tasks:
+      - id: CODE
+        title: 实现功能
+        priority: P1
+        est_min: 30
+  - id: review
+    agent: reviewer
+    depends_on: [implement]
+    gate_commands: ["npm test"]
+    tasks:
+      - id: REVIEW
+        title: 审查功能
+        priority: P1
+        est_min: 15
+```
+
+```bash
+nightowl workflow generate --intent "新增登录功能" --no-apply # 从需求推导原型
+nightowl workflow generate --intent "检查鉴权边界" --template audit --no-apply
+nightowl workflow generate --template bugfix --no-apply     # 显式原型
+nightowl workflow generate workflow.yaml            # 保存工作流，默认替换任务池
+nightowl workflow generate workflow.yaml --no-apply # 仅保存、校验，不改任务池
+nightowl workflow generate --apply                  # 将已保存的工作流重新应用
+nightowl workflow show                             # 输出已保存工作流的 YAML
+nightowl workflow list                             # 列出阶段、agent、任务及阶段依赖
+```
+
+`--template` 支持 `feature`、`bugfix`、`refactor`、`audit`，优先于 `--intent` 的中英文关键词推导。推导优先级为审计 → 修复 → 重构，其他需求默认 feature。file 与 `--intent` / `--template` 互斥；空意图、非法模板在落盘前报错。不传来源仍重新应用已保存工作流。
+
+| 原型 | 阶段（agent） |
+| --- | --- |
+| feature | design (architect) → implement (developer) → verify (tester) → review (reviewer) |
+| bugfix | diagnose (debugger) → fix (developer) → regression (tester) → review (reviewer) |
+| refactor | baseline (tester) → refactor (developer) → regression (tester) → review (reviewer) |
+| audit | inspect (auditor) → review (reviewer) → report (auditor) |
+
+原型是待细化的任务骨架：用 `--no-apply` 保存后，编辑工作流中的实际任务、验收标准、估时与门禁，再 `generate --apply`。默认门禁使用 `git diff --check`、`npm run typecheck`、`npm test`，执行前须按项目适配，差异检查不等于业务验收。audit 只读分析与报告，不自动修复。生成 ID 为 `<原型>-<阶段>`，重复生成会复用 ID，开始新交付前请设置唯一任务 ID，避免旧执行状态影响调度。`init` 在四个平台铺装 `nightowl-workflows` 技能，`nightowl-plan` 按复杂度分流，简单任务仍用 `nightowl add`。
+
+工作流保存到 `.nightowl/nightowl.workflow.yaml`，应用时替换 `.nightowl/nightowl.tasks.yaml`，**不修改独立状态文件 `nightowl.state.yaml`**（包括已完成、阻塞和进行中记录；复用任务 ID 会继续受原状态影响）。未显式配置时保留现有 `schedule` / `checkpoint` 设置；无任务池时使用初始化默认值。每个阶段至少一个任务；任务的 `status` 默认 `pending`、`depends_on` 默认空数组。
+
+阶段 `depends_on` 引用**阶段 ID**；任务 `depends_on` 引用**任务 ID**。前置阶段的全部任务 ID 合并到当前阶段每个任务的依赖并去重，`agent` 覆盖任务的 `assignee`，`gate_commands` 合并到每个任务的 `verify` 并去重。编译会拒绝重复阶段/任务 ID、不存在的引用、阶段循环和展开后产生的任务循环；校验失败不会覆盖已有文件。门禁由原有 `nightowl verify` 执行，生成命令本身不执行门禁。
+
 ## 使用流程（三阶段）
 
 ### plan —— 交互式分析需求
@@ -95,6 +147,7 @@ nightowl status
 | `done` | 标记完成（审查 + 测试关口） |
 | `block` | 阻塞 |
 | `schedule` | 重试预算 |
+| `workflow generate/show/list` | 编译、应用和查看分阶段工作流 |
 | `verify` | 跑验收命令 |
 | `analyze` | 项目文档分析（产出项目上下文） |
 | `review` | 记录审查结果 |

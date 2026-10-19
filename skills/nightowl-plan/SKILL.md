@@ -39,6 +39,9 @@ plan 阶段的核心使命是：**在白天人机协同阶段，把需求、边�
 用户一次性确认后，直接锁死边界，不再反复追问。
 
 ### 3. 任务拆解与 L1/L2 机器门禁锁死
+
+**工作流分流**：涉及多阶段交付、不同角色交接或阶段门禁时，读取同级 `../nightowl-workflows/SKILL.md`，沿用前两步已确认的需求边界；使用 `nightowl workflow generate --intent "需求描述" --no-apply` 生成骨架，或用 `--template feature|bugfix|refactor|audit` 显式选择原型，再落实项目门禁并应用。file 与生成选项互斥。简单独立任务继续使用下方 `nightowl add` 路径，不强制升级为工作流。
+
 每个任务必须独立、可验证，且**必须携带客观的自动化机器门禁**：
 - **L1 语法/类型门**：秒级过滤破损代码（例如 `npm run typecheck`）；
 - **L2 目标单测门**：针对本次新功能或修复的专门测试（例如 `npm test`）。

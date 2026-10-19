@@ -8,6 +8,9 @@ import { t } from '../i18n.js';
 import { resolvePlatform, platformFromFlags } from '../platforms/index.js';
 import type { Platform } from '../platforms/types.js';
 
+// init's skill registry is shared with every platform installer.
+export { PROJECT_SKILLS } from '../skills.js';
+
 export const DEFAULT_RETRY_BUDGET = 2;
 
 // 保持对外导出,兼容既有测试/引用;实现已移到独立的 install.ts(避免 platform 与 init 循环依赖)

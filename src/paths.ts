@@ -27,6 +27,7 @@ export function getBaseDir(): string {
 }
 
 export const POOL_FILE = (): string => path.join(getBaseDir(), 'nightowl.tasks.yaml');
+export const WORKFLOW_FILE = (): string => path.join(getBaseDir(), 'nightowl.workflow.yaml');
 export const STATE_FILE = (): string => path.join(getBaseDir(), 'nightowl.state.yaml');
 export const LOG_FILE = (): string => path.join(getBaseDir(), 'nightowl.log');
 export const SUPERVISOR_LOG = (): string => path.join(getBaseDir(), 'nightowl.supervisor.log');
