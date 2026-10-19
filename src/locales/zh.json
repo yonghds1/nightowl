@@ -200,6 +200,7 @@
     "finalizeFail": "  ⚠️ 收尾轮失败,报告可能未生成(可手动运行 nightowl report 补齐)",
     "onceStop": "⏹ --once:已跑一轮,退出",
     "roundStart": "🔄 第 {{round}} 轮:驱动主会话(剩余 {{remaining}} 个任务)",
+    "infraError": "❌ 致命环境错误:{{error}},停止监督器并保留任务,未消耗业务重试预算",
     "fallback": "  ↪ --continue 失败,回退去掉 --continue 新开会话",
     "blockFail": "❌ 会话连续 {{attempt}} 轮失败,阻塞任务 {{id}}",
     "blockReason": "supervise 连续 {{attempt}} 轮会话失败",

@@ -2,7 +2,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-// .nightowl/ 状态目录:默认惰性取当前工作目录(cli 的 --dir 经 preAction chdir 决定)。
+// .nightowl/ 状态目录:默认从当前工作目录向上查找(cli 的 --dir 经 preAction chdir 决定)。
 // baseDir 保持 null 时每次 getBaseDir() 现算 cwd —— 这样 preAction 的 chdir 生效,
 // `nightowl --dir <根>` 才能读写目标目录。测试通过 setBaseDir() 注入临时目录,避免污染真实项目。
 let baseDir: string | null = null;
@@ -12,7 +12,18 @@ export function setBaseDir(dir: string): void {
 }
 
 export function getBaseDir(): string {
-  return baseDir ?? path.join(process.cwd(), '.nightowl');
+  if (baseDir !== null) return baseDir;
+
+  let dir = process.cwd();
+  const fallback = path.join(dir, '.nightowl');
+  while (true) {
+    const candidate = path.join(dir, '.nightowl');
+    if (fs.existsSync(candidate)) return candidate;
+
+    const parent = path.dirname(dir);
+    if (parent === dir) return fallback;
+    dir = parent;
+  }
 }
 
 export const POOL_FILE = (): string => path.join(getBaseDir(), 'nightowl.tasks.yaml');

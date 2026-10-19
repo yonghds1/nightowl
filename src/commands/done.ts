@@ -19,10 +19,10 @@ export function createDoneCommand(): Command {
   return new Command('done')
     .description(t('done.desc'))
     .argument('<id>')
-    .argument('<actual_min>', t('done.actualMinArg'), (v: string) => parseInt(v, 10))
+    .argument('[actual_min]', t('done.actualMinArg'), (v: string) => parseInt(v, 10))
     .option('--force', t('done.forceOption'))
     .option('--require-commit', t('done.requireCommitOption'))
-    .action((id: string, actualMin: number, opts: { force: boolean; requireCommit?: boolean }) => {
+    .action((id: string, actualMin: number | undefined, opts: { force: boolean; requireCommit?: boolean }) => {
       const pool = loadPool();
       if (!pool) {
         console.error(t('common.noPool'));
@@ -70,6 +70,9 @@ export function createDoneCommand(): Command {
           }
           console.log(t('done.noCommitWarn', { id }));
         }
+      }
+      if (actualMin === undefined || Number.isNaN(actualMin)) {
+        actualMin = task.est_min ?? 15;
       }
       task.status = 'done';
       task.actual_min = actualMin;

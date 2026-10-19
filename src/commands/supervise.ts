@@ -56,6 +56,9 @@ export interface HostRoundResult {
   code: number;
   /** 本轮运行毫秒数(用于区分快速失败与超时)。 */
   elapsedMs: number;
+  /** 宿主启动等环境故障,不计入业务任务重试。 */
+  infraError?: boolean;
+  error?: string;
 }
 
 /** spawn 宿主 headless 会话跑一轮,超时 kill。onSpawn 暴露子进程(供信号处理 kill)。 */
@@ -82,7 +85,7 @@ export function runHostRound(
     child.on('error', (err) => {
       clearTimeout(timer);
       logLine(`[spawn-error] ${err.message}`);
-      resolve({ code: 1, elapsedMs: elapsed() });
+      resolve({ code: 1, elapsedMs: elapsed(), infraError: true, error: err.message });
     });
     child.on('exit', (code) => {
       clearTimeout(timer);
@@ -167,6 +170,10 @@ export async function superviseLoop(
       if (state.completed.length > 0 && !fs.existsSync(REPORT_FILE())) {
         logLine(t('supervise.finalizeRound'));
         const fr = await runHostRound(hr, FINALIZE_PROMPT, timeoutMs, true, logLine, onSpawn);
+        if (fr.infraError) {
+          logLine(t('supervise.infraError', { error: fr.error ?? '' }));
+          return 1;
+        }
         if (fr.code !== 0) logLine(t('supervise.finalizeFail'));
       }
       const doneMsg =
@@ -199,9 +206,14 @@ export async function superviseLoop(
     // 先试 --continue 续接主会话;快速失败(如首次无历史会话报错)回退去掉 --continue 新开会话。
     // 超时(宿主长时间运行)不算快速失败,直接计失败,避免每轮吃 2 个完整超时。
     let r = await runHostRound(hr, SUPERVISOR_PROMPT, timeoutMs, true, logLine, onSpawn);
-    if (r.code !== 0 && r.elapsedMs < timeoutMs / 2) {
+    if (!r.infraError && r.code !== 0 && r.elapsedMs < timeoutMs / 2) {
       logLine(t('supervise.fallback'));
       r = await runHostRound(hr, SUPERVISOR_PROMPT, timeoutMs, false, logLine, onSpawn);
+    }
+
+    if (r.infraError) {
+      logLine(t('supervise.infraError', { error: r.error ?? '' }));
+      return 1;
     }
 
     const after = loadState();

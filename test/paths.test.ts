@@ -28,6 +28,42 @@ describe('paths baseDir 惰性', () => {
     fs.rmSync(d2, { recursive: true, force: true });
   });
 
+  it.each([
+    'src',
+    path.join('src', 'nested', 'deep'),
+    path.join('.nightowl', 'worktrees', 'T001'),
+    path.join('.nightowl', 'worktrees', 'T001', 'src', 'nested'),
+  ])('在 %s 中识别外层项目的 .nightowl', (relativeDir) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nightowl-ancestor-'));
+    const base = path.join(dir, '.nightowl');
+    const cwd = path.join(dir, relativeDir);
+    fs.mkdirSync(base, { recursive: true });
+    fs.mkdirSync(cwd, { recursive: true });
+    try {
+      process.chdir(cwd);
+      expect(getBaseDir()).toBe(base);
+    } finally {
+      process.chdir('/');
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it.each(['', 'src'])('优先使用最近的 .nightowl（子目录：%s）', (relativeDir) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nightowl-nearest-'));
+    const nested = path.join(dir, 'nested');
+    const cwd = path.join(nested, relativeDir);
+    fs.mkdirSync(path.join(dir, '.nightowl'), { recursive: true });
+    fs.mkdirSync(path.join(nested, '.nightowl'), { recursive: true });
+    fs.mkdirSync(cwd, { recursive: true });
+    try {
+      process.chdir(cwd);
+      expect(getBaseDir()).toBe(path.join(nested, '.nightowl'));
+    } finally {
+      process.chdir('/');
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('setBaseDir 注入后固定,不受 chdir 影响', () => {
     const fixed = path.join(os.tmpdir(), 'nightowl-fixed');
     const other = fs.mkdtempSync(path.join(os.tmpdir(), 'nightowl-other-'));

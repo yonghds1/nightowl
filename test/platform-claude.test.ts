@@ -33,6 +33,19 @@ describe('claude platform', () => {
     expect(r2.hooksAdded).toBe(false);
   });
 
+  it.each(['project', 'local'] as const)('writePermissions 遇非法 JSON 时抛错并保留原文件(scope=%s)', (scope) => {
+    const fname = scope === 'local' ? 'settings.local.json' : 'settings.json';
+    const target = path.join(root, '.claude', fname);
+    const original = Buffer.from('{ "permissions": { "allow": ["Bash(user-command)"] }, // 用户配置\n');
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, original);
+
+    expect(() => claude.writePermissions(root, scope)).toThrow(`Failed to parse JSON in ${target}; refusing to overwrite existing settings.`);
+    expect(fs.readFileSync(target)).toEqual(original);
+    expect(fs.existsSync(`${target}.json.tmp`)).toBe(false);
+    expect(fs.existsSync(path.join(root, '.claude', 'hooks', 'permission-mode.mjs'))).toBe(false);
+  });
+
   it('已有其它 PreToolUse hook(如 trellis)时追加而非覆盖', () => {
     const settings = {
       hooks: {

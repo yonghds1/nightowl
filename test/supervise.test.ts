@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { setBaseDir } from '../src/paths.js';
-import { loadState, saveState, loadPool } from '../src/state.js';
+import { loadState, saveState, loadPool, savePool } from '../src/state.js';
 import { createInitCommand } from '../src/commands/init.js';
 import { createAddCommand } from '../src/commands/add.js';
 import { createScheduleCommand } from '../src/commands/schedule.js';
@@ -13,6 +13,7 @@ import {
   shouldStopIdle,
   rotateLogIfLarge,
   superviseLoop,
+  runHostRound,
   blockInProgress,
   type SuperviseOptions,
 } from '../src/commands/supervise.js';
@@ -62,6 +63,32 @@ function advancingHost(): HeadlessRun {
 
 const noopHost: HeadlessRun = { cmd: 'node', args: () => ['-e', ''] };
 const failHost: HeadlessRun = { cmd: 'node', args: () => ['-e', 'process.exit(3)'] };
+
+function unavailableHost(errorCode: string): HeadlessRun {
+  const cmd = path.join(root, 'unavailable-host');
+  if (errorCode === 'EACCES') fs.writeFileSync(cmd, '#!/bin/sh\n', { mode: 0o644 });
+  return { cmd, args: () => [] };
+}
+
+describe('runHostRound 环境故障', () => {
+  it.each(['ENOENT', 'EACCES'])('%s 返回环境错误与原始错误信息', async (errorCode) => {
+    const logs: string[] = [];
+    const result = await runHostRound(unavailableHost(errorCode), 'prompt', 60_000, true, (l) => logs.push(l));
+
+    expect(result.code).toBe(1);
+    expect(result.infraError).toBe(true);
+    expect(result.error).toContain(errorCode);
+    expect(logs.join('\n')).toContain(`[spawn-error] ${result.error}`);
+  });
+
+  it('业务进程非零退出不标为环境错误', async () => {
+    const result = await runHostRound(failHost, 'prompt', 60_000, true, () => {});
+
+    expect(result.code).toBe(3);
+    expect(result.infraError).toBeUndefined();
+    expect(result.error).toBeUndefined();
+  });
+});
 
 describe('纯函数', () => {
   it('progressSig = completed:blocked 数量', () => {
@@ -179,6 +206,77 @@ describe('superviseLoop 循环', () => {
     expect(code).toBe(0);
     expect(captured.logs.join('\n')).toContain('--once');
     expect(loadState().completed).toHaveLength(1);
+  });
+
+  it.each([
+    { errorCode: 'ENOENT', retryBudget: 1 },
+    { errorCode: 'ENOENT', retryBudget: 3 },
+    { errorCode: 'EACCES', retryBudget: 1 },
+  ])('$errorCode 立即退出且不消耗业务重试预算 $retryBudget', async ({ errorCode, retryBudget }) => {
+    addTask('T1');
+    addTask('T2');
+    runCommand(createScheduleCommand(), ['--retry-budget', String(retryBudget)]);
+    const pool = loadPool();
+    const state = loadState();
+    const logs: string[] = [];
+    let spawns = 0;
+
+    const code = await superviseLoop(baseOpts(), (l) => logs.push(l), unavailableHost(errorCode), () => { spawns++; });
+
+    expect(code).toBe(1);
+    expect(spawns).toBe(1);
+    expect(loadPool()).toEqual(pool);
+    expect(loadState()).toEqual({
+      ...state,
+      in_progress: { id: 'T1', started_at: expect.any(String) },
+    });
+    expect(logs.join('\n')).toContain('致命环境错误');
+    expect(logs.join('\n')).toContain(errorCode);
+    expect(logs.join('\n')).not.toMatch(/回退|退避重试|阻塞任务/);
+    expect(fs.existsSync(path.join(root, '.nightowl', 'nightowl.checkpoint.yaml'))).toBe(false);
+  });
+
+  it('回退启动时环境错误立即退出并保留任务', async () => {
+    addTask('T1');
+    runCommand(createScheduleCommand(), ['--retry-budget', '1']);
+    const pool = loadPool();
+    const host: HeadlessRun = { ...failHost };
+    const logs: string[] = [];
+    let spawns = 0;
+
+    const code = await superviseLoop(baseOpts(), (l) => logs.push(l), host, () => {
+      spawns++;
+      host.cmd = path.join(root, 'missing-host');
+    });
+
+    expect(code).toBe(1);
+    expect(spawns).toBe(2);
+    expect(loadPool()).toEqual(pool);
+    expect(loadState().blocked).toEqual([]);
+    expect(loadState().in_progress?.id).toBe('T1');
+    expect(logs.join('\n')).toContain('回退');
+    expect(logs.join('\n')).toContain('致命环境错误');
+    expect(logs.join('\n')).not.toMatch(/退避重试|阻塞任务/);
+  });
+
+  it('收尾轮环境错误退出 1 且保留已完成任务', async () => {
+    addTask('T1');
+    const pool = loadPool()!;
+    pool.pool[0].status = 'done';
+    savePool(pool);
+    const state = loadState();
+    state.completed.push({ id: 'T1', actual_min: 1, finished_at: 'x' });
+    saveState(state);
+    const captured = captureConsole();
+    const logs: string[] = [];
+
+    const code = await superviseLoop(baseOpts(), (l) => logs.push(l), unavailableHost('ENOENT'));
+
+    expect(code).toBe(1);
+    expect(loadPool()).toEqual(pool);
+    expect(loadState()).toEqual(state);
+    expect(logs.join('\n')).toContain('致命环境错误');
+    expect(captured.logs.join('\n')).not.toContain('run 完成');
   });
 
   it('retry 耗尽阻塞任务(有阻塞退出码 1)', async () => {

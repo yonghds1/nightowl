@@ -200,6 +200,7 @@
     "finalizeFail": "  ⚠️ Finalize round failed, report may be missing (run nightowl report to fill it)",
     "onceStop": "⏹ --once: ran one round, exiting",
     "roundStart": "🔄 Round {{round}}: driving main session ({{remaining}} tasks left)",
+    "infraError": "❌ Fatal infrastructure error: {{error}}, stopping supervisor and preserving tasks without consuming the task retry budget",
     "fallback": "  ↪ --continue failed, falling back to a fresh session without --continue",
     "blockFail": "❌ Session failed {{attempt}} rounds in a row, blocking task {{id}}",
     "blockReason": "supervise session failed {{attempt}} rounds in a row",

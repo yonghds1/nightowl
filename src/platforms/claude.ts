@@ -138,11 +138,12 @@ export function applyPermissions(projectRoot: string, scope: 'project' | 'local'
 
   let data: Record<string, unknown> = {};
   if (fs.existsSync(target)) {
+    const raw = fs.readFileSync(target, 'utf8');
     try {
-      const parsed = JSON.parse(fs.readFileSync(target, 'utf8')) as Record<string, unknown>;
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
       if (parsed && typeof parsed === 'object') data = parsed;
-    } catch {
-      data = {};
+    } catch (error) {
+      throw new Error(`Failed to parse JSON in ${target}; refusing to overwrite existing settings.`, { cause: error });
     }
   }
 

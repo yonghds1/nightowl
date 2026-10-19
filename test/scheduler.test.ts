@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { setBaseDir } from '../src/paths.js';
-import { loadPool } from '../src/state.js';
+import { loadPool, savePool, loadState } from '../src/state.js';
 import { createInitCommand } from '../src/commands/init.js';
 import { createAddCommand } from '../src/commands/add.js';
 import { createDoneCommand } from '../src/commands/done.js';
@@ -30,6 +30,33 @@ afterEach(() => {
 function task(tid = 'T1') {
   return loadPool()!.pool.find((t) => t.id === tid)!;
 }
+
+describe('done 实际耗时', () => {
+  it.each([
+    { name: '省略参数使用任务估时', args: [], estMin: 27, expected: 27 },
+    { name: '省略参数且无估时使用 15 分钟', args: [], estMin: undefined, expected: 15 },
+    { name: '非法参数使用任务估时', args: ['invalid'], estMin: 27, expected: 27 },
+    { name: '非法参数且无估时使用 15 分钟', args: ['invalid'], estMin: undefined, expected: 15 },
+    { name: '保留显式的零分钟', args: ['0'], estMin: 27, expected: 0 },
+    { name: '省略参数保留零分钟估时', args: [], estMin: 0, expected: 0 },
+    { name: '显式耗时覆盖任务估时', args: ['5'], estMin: 27, expected: 5 },
+  ])('$name', ({ args, estMin, expected }) => {
+    const pool = loadPool()!;
+    if (estMin === undefined) Reflect.deleteProperty(pool.pool[0], 'est_min');
+    else pool.pool[0].est_min = estMin;
+    savePool(pool);
+    runCommand(createReviewCommand(), ['T1', '--result', 'PASS']);
+
+    const r = runCommand(createDoneCommand(), ['T1', ...args]);
+
+    expect(r.exitCode).toBeUndefined();
+    expect(task().status).toBe('done');
+    expect(task().actual_min).toBe(expected);
+    expect(loadState().completed).toEqual([
+      expect.objectContaining({ id: 'T1', actual_min: expected }),
+    ]);
+  });
+});
 
 describe('done 审查关口', () => {
   it('无审查记录拒绝 done', () => {

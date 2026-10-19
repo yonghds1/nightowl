@@ -62,7 +62,7 @@ function installTemplates(
 // 顶层区 = 文件开头到第一个 [section] 头之前(无 section 则整文件为顶层区)。
 // 顶层键必须落在这一段,否则会被后续 [table] 吞成该表的键,Codex 读不到顶层值。
 function splitTopLevel(existing: string): { head: string; rest: string } {
-  const m = /^\[[^\]]+\]\s*(#.*)?$/m.exec(existing);
+  const m = /^\s*\[[^\]]+\]\s*(#.*)?$/m.exec(existing);
   if (!m) return { head: existing, rest: '' };
   return { head: existing.slice(0, m.index), rest: existing.slice(m.index) };
 }
@@ -89,7 +89,7 @@ function mergeTomlKey(existing: string, key: string, value: string): string {
 
 // 合并 [table] 段下的键:无段则整段追加;有段但缺键则在段末追加(回退过段尾注释块);有键不动。
 function mergeTomlTableKey(existing: string, table: string, key: string, value: string): string {
-  const headerRe = new RegExp(`^\\[${table}\\]\\s*(#.*)?$`, 'm');
+  const headerRe = new RegExp(`^\\s*\\[${table}\\]\\s*(#.*)?$`, 'm');
   const m = headerRe.exec(existing);
   if (!m) {
     const base = existing.replace(/\n?$/, '');
@@ -98,7 +98,7 @@ function mergeTomlTableKey(existing: string, table: string, key: string, value: 
   }
   // 段体 = 从 header 到下一个 [section](含带尾注的头)或文件末尾
   const after = existing.slice(m.index + m[0].length);
-  const nextSection = after.search(/^\[[^\]]+\]\s*(#.*)?$/m);
+  const nextSection = after.search(/^\s*\[[^\]]+\]\s*(#.*)?$/m);
   const rawEnd = nextSection === -1 ? existing.length : m.index + m[0].length + nextSection;
   const body = existing.slice(m.index + m[0].length, rawEnd);
   if (new RegExp(`^\\s*${key}\\s*=`, 'm').test(body)) return existing;
@@ -106,7 +106,7 @@ function mergeTomlTableKey(existing: string, table: string, key: string, value: 
   const { kept } = detachTrailingComments(body);
   const bodyEnd = Math.min(m.index + m[0].length + kept.length, rawEnd);
   const gap = existing.slice(bodyEnd - 1, bodyEnd) === '\n' ? '' : '\n';
-  return existing.slice(0, bodyEnd) + `${key} = ${value}\n` + gap + existing.slice(bodyEnd);
+  return existing.slice(0, bodyEnd) + gap + `${key} = ${value}\n` + existing.slice(bodyEnd);
 }
 
 function writePermissions(projectRoot: string, scope: 'project' | 'local' = 'project'): PermissionsResult {
