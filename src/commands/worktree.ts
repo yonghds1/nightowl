@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { existsSync, mkdirSync, rmSync, readdirSync } from 'node:fs';
+import fs, { existsSync, mkdirSync, rmSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { git } from '../git.js';
 import { getBaseDir } from '../paths.js';
@@ -21,6 +21,33 @@ function requireTaskId(id: string): void {
   } catch (err: unknown) {
     console.error((err as Error).message);
     process.exit(1);
+  }
+}
+
+/**
+ * 确保 .nightowl/ 在本仓库(含所有 linked worktree)被 git 忽略。
+ *
+ * worktree setup 是从 HEAD commit 建工作树的:如果用户还没把 init 写的 .gitignore 提交,
+ * 新 worktree 里就没有忽略规则,子代理/工具只要往 .nightowl/ 落一个文件,
+ * cleanup 的 `git status --porcelain` 就会判 WORKTREE_DIRTY 拒绝清理。
+ *
+ * 写 info/exclude 而不是 .gitignore:它是 $GIT_COMMON_DIR 下、所有 linked worktree 共享的,
+ * 且不进工作树 —— 不改用户的提交内容,也不会出现在 git status 里。
+ */
+function ensureIgnoredInRepo(): void {
+  const common = git(['rev-parse', '--git-common-dir']);
+  if (common.code !== 0 || !common.stdout.trim()) return; // 非 git 仓库:交给上层报错
+  const exclude = path.join(common.stdout.trim(), 'info', 'exclude');
+  const entry = '.nightowl/';
+  try {
+    const cur = existsSync(exclude) ? fs.readFileSync(exclude, 'utf8') : '';
+    const lines = cur.split('\n').map((l) => l.trim());
+    if (lines.includes(entry) || lines.includes('.nightowl')) return;
+    mkdirSync(path.dirname(exclude), { recursive: true });
+    const sep = cur === '' || cur.endsWith('\n') ? '' : '\n';
+    fs.writeFileSync(exclude, `${cur}${sep}${entry}\n`, 'utf8');
+  } catch {
+    // 忽略:写不进去也不能挡住 setup 主流程
   }
 }
 
@@ -57,6 +84,9 @@ export function createWorktreeCommand(): Command {
           process.exit(1);
         }
       }
+
+      // 先确保 .nightowl/ 在本仓库被忽略,再建 worktree(共享 info/exclude,新 worktree 立即生效)
+      ensureIgnoredInRepo();
 
       const parent = path.dirname(targetDir);
       if (!existsSync(parent)) mkdirSync(parent, { recursive: true });

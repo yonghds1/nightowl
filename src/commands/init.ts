@@ -63,6 +63,47 @@ function ensureDeveloper(user?: string): void {
   }
 }
 
+/**
+ * 确保 .nightowl/ 被 .gitignore 忽略。
+ *
+ * 为什么必须做:init 会在用户项目里铺 .nightowl/(任务池/状态/日志/worktrees)与 .claude/
+ * 等 harness 产物。不忽略的话它们全是未跟踪文件,而 worktree cleanup 用
+ * `git status --porcelain` 判"现场是否脏",脏了就拒绝清理 —— 每个任务都会留下残留
+ * worktree,无人值守下累积到后续合并全部失败。
+ *
+ * 策略:只追加缺失条目,从不改写用户已有内容;已有 .gitignore 就插在末尾;
+ * 没有就新建。用户手删该行后重跑 init 会补回(幂等)。
+ */
+export const GITIGNORE_MARKER = '# nightowl (agent 工作区状态,不入库)';
+export const GITIGNORE_ENTRIES = ['.nightowl/'];
+
+export function ensureGitignore(projectRoot: string): 'created' | 'updated' | 'unchanged' {
+  const file = path.join(projectRoot, '.gitignore');
+  const existing = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null;
+  const lines = existing === null ? [] : existing.split('\n');
+  const trimmed = new Set(lines.map((l) => l.trim()));
+
+  // 已忽略则不动(接受 .nightowl 无尾斜杠等等价写法)
+  const alreadyIgnored = GITIGNORE_ENTRIES.every(
+    (e) => trimmed.has(e) || trimmed.has(e.replace(/\/$/, '')),
+  );
+  if (alreadyIgnored) return 'unchanged';
+
+  const missing = GITIGNORE_ENTRIES.filter(
+    (e) => !trimmed.has(e) && !trimmed.has(e.replace(/\/$/, '')),
+  );
+  if (existing === null) {
+    fs.writeFileSync(file, `${GITIGNORE_MARKER}\n${missing.join('\n')}\n`, 'utf8');
+    return 'created';
+  }
+  // 追加时保证前面有空行分隔,不把新条目粘到用户最后一行后面
+  const sep = existing.endsWith('\n') ? '' : '\n';
+  const lead = existing.trim().length ? '\n' : '';
+  const block = `${sep}${lead}${GITIGNORE_MARKER}\n${missing.join('\n')}\n`;
+  fs.writeFileSync(file, existing + block, 'utf8');
+  return 'updated';
+}
+
 export function createInitCommand(): Command {
   return new Command('init')
     .description(t('init.desc'))
@@ -122,6 +163,12 @@ export function createInitCommand(): Command {
 
       // 记录平台,后续 setup-permissions/selfcheck 按它分发
       fs.writeFileSync(PLATFORM_FILE(), `${platform.id}\n`, 'utf8');
+
+      // .nightowl/ 必须被忽略,否则 worktree cleanup 会把 harness 状态误判为未提交改动
+      const giResult = ensureGitignore(projectRoot);
+      if (giResult !== 'unchanged') {
+        console.log(t('init.gitignoreWritten', { action: giResult, entries: GITIGNORE_ENTRIES.join(', ') }));
+      }
 
       if (opts.skipPermissions) {
         console.log(t('init.skippedPermissions'));

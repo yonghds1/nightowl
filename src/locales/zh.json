@@ -32,7 +32,8 @@
     "tplSkipped": "⚠️  {{dst}} 已存在且被本地定制,跳过(--force 覆盖)",
     "tplForced": "⚠️ 已强制覆盖 {{dst}}(本地定制已被替换)",
     "tplMissing": "❌ 包内模板缺失,无法铺入: {{dst}}",
-    "commandsReady": "📂 项目级技能就绪"
+    "commandsReady": "📂 项目级技能就绪",
+    "gitignoreWritten": "📝 已{{action}} .gitignore:{{entries}}(否则 worktree 会把 harness 状态误判为未提交改动)"
   },
   "add": {
     "desc": "加任务",

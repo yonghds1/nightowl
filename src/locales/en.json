@@ -32,7 +32,8 @@
     "tplSkipped": "⚠️  {{dst}} already exists and is locally customized, skipped (--force overwrites)",
     "tplForced": "⚠️  Forced overwrite {{dst}} (local customizations replaced)",
     "tplMissing": "❌ Template missing in package, cannot install: {{dst}}",
-    "commandsReady": "📂 Project skills ready"
+    "commandsReady": "📂 Project skills ready",
+    "gitignoreWritten": "📝 .gitignore {{action}}: {{entries}} (otherwise worktree misreads harness state as uncommitted changes)"
   },
   "add": {
     "desc": "Add task",
