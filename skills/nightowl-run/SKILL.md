@@ -13,7 +13,13 @@ description: 静默执行任务池的核心子技能:自动循环派发任务"�
 nightowl selfcheck
 ```
 - 输出 `PERMISSION_MODE: bypass` 且工作区无未跟踪/未暂存风险方可开工；
-- 若提示失败或未处于 bypass 模式，需以无权限确认模式启动({{PLATFORM_RELAUNCH}})，或运行 `nightowl init --skip-permissions` 后重启会话。
+- 若输出 `not_bypass` 或 `unknown`：**本技能不可用，必须停下开工动作，向用户弹权限申请**——
+  明确告诉用户「nightowl-run 需要无权限确认模式，请以以下方式启动/授权」并等待用户操作后重新自检：
+  - 交互会话：让用户在平台交互界面切换到 bypass/免确认模式（如 Claude Code 用
+    `--dangerously-skip-permissions` 重启,或弹出权限批准框后让用户选择 Always allow）；
+  - 新起 会话/headless：以无权限确认模式重启({{PLATFORM_RELAUNCH}})，或运行 `nightowl init --skip-permissions` 后重启会话。
+- 在拿到 `PERMISSION_MODE: bypass` 之前，**禁止**继续执行本技能后续任何步骤——
+  静默调度一旦半途开始弹权限确认，无人值守契约即被破坏；宁可不开工，不可半开工。
 
 ## 2. 核心无人值守主调度循环
 逐个任务循环执行以下标准原子流水线，直至 `nightowl next` 显示无待办任务：

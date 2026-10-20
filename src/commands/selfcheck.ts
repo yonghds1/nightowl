@@ -43,5 +43,8 @@ export function createSelfcheckCommand(): Command {
         console.log('PERMISSION_MODE: unknown');
         console.log(t('selfcheck.unknown'));
       }
+      // exit 语义:0=bypass 可无人值守;1=非 bypass/未知 → run 技能凭它判断"必须先弹权限"。
+      // 未知时按最保守处理:无 hook 也无进程信号意味着无法自证,run 不得开工。
+      process.exitCode = bypass === true ? 0 : 1;
     });
 }
