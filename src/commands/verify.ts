@@ -148,12 +148,27 @@ export function createVerifyCommand(): Command {
         }
       }
 
-      // 记录当前目标工作区的代码版本与工作区指纹
+      // 记录当前目标工作区的代码版本与工作区指纹。
+      //
+      // head 是防偷改的唯一凭据:worktree merge 用它和分支 HEAD 比对,不一致就拒绝合并。
+      // 取不到 head 时不能静默放过 —— 那会让 VERIFY_RECORD_STALE 这道门永远不生效,
+      // 等于"验证通过"变成一张没有绑定任何代码版本的空头支票。
       let head: string | undefined;
       let dirty_diff_hash: string | undefined;
       const headRes = git(['rev-parse', 'HEAD'], { cwd: execCwd });
       if (headRes.code === 0 && headRes.stdout.trim()) {
         head = headRes.stdout.trim();
+      } else {
+        // 兜底:execCwd 可能已失效(worktree 被清)或不在 git 仓库内,回到项目根再试一次
+        const fallback = git(['rev-parse', 'HEAD']);
+        if (fallback.code === 0 && fallback.stdout.trim()) {
+          head = fallback.stdout.trim();
+        } else {
+          // 真的拿不到版本(非 git 环境):明确告警,别让调用方以为回执已绑定代码
+          console.error(
+            t('verify.noHead', { id: taskId, cwd: execCwd ?? process.cwd() }),
+          );
+        }
       }
       const statusRes = git(['status', '--porcelain'], { cwd: execCwd });
       if (statusRes.code === 0) {

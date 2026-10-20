@@ -89,7 +89,8 @@
   },
   "verify": {
     "desc": "跑验收命令",
-    "failed": "❌ {{id}} 验收命令失败(退出码 {{code}}): {{cmd}}"
+    "failed": "❌ {{id}} 验收命令失败(退出码 {{code}}): {{cmd}}",
+    "noHead": "⚠️ {{id}} 验收通过但取不到 git HEAD(目录: {{cwd}}),验证回执未绑定代码版本,worktree merge 的防偷改校验将不生效。"
   },
   "analyze": {
     "desc": "项目文档分析",

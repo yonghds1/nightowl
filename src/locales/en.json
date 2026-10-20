@@ -89,7 +89,8 @@
   },
   "verify": {
     "desc": "Run verification commands",
-    "failed": "❌ {{id}} verification command failed (exit code {{code}}): {{cmd}}"
+    "failed": "❌ {{id}} verification command failed (exit code {{code}}): {{cmd}}",
+    "noHead": "⚠️ {{id}} passed but git HEAD unavailable (dir: {{cwd}}); receipt is not bound to a code version and worktree merge stale-check will not apply."
   },
   "analyze": {
     "desc": "Analyze project docs",
