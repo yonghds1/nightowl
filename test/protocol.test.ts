@@ -39,7 +39,15 @@ const PROTOCOL = {
     'RESUME_MERGE',
     'RESUME_COMMITTED',
   ],
-  sweep: ['SWEEP_CLEAN', 'SWEEP_FAIL:'],
+  sweep: [
+    'SWEEP_CLEAN',
+    'SWEEP_FAIL:',
+    'SWEEP_REMOVED:',
+    'SWEEP_KEEP_UNMERGED:',
+    'SWEEP_KEEP_DIRTY:',
+    'SWEEP_KEEP_UNKNOWN:',
+    'SWEEP_REMOVE_FAIL:',
+  ],
   verify: ['ALL_PASS', 'VERIFY_NONE', 'ERROR:'],
   // INVALID_TASK_ID 由 task-id.ts 抛错、由各命令 catch 后打印,登记在 taskId 域
 
@@ -231,6 +239,32 @@ describe('正向:每个 token 都能真实产出', () => {
     // ③ 已合入当前分支
     git(['merge', '-q', '--no-ff', '-m', 'merge [#T1]', 'wt-t1']);
     expect(runCommand(createNextCommand(), []).stdout).toContain('# RESUME_COMMITTED T1');
+  });
+
+  it('sweep --clean:安全清理 token', () => {
+    // 已合入且干净 → SWEEP_REMOVED;未合入 → SWEEP_KEEP_UNMERGED
+    addTask('TC1');
+    runCommand(createWorktreeCommand(), ['setup', 'TC1']);
+    const wt = path.join(root, '.nightowl', 'worktrees', 'TC1');
+    fs.writeFileSync(path.join(wt, 'impl.txt'), 'w', 'utf8');
+    spawnSync('git', ['-C', wt, 'add', 'impl.txt'], { encoding: 'utf8' });
+    spawnSync('git', ['-C', wt, 'commit', '-q', '-m', '[#TC1] impl'], { encoding: 'utf8' });
+    git(['merge', '-q', '--no-ff', '-m', 'merge [#TC1]', 'nightowl/TC1']);
+
+    const r = runCommand(createSweepCommand(), ['--clean']);
+    expect(r.stdout).toContain('SWEEP_REMOVED:');
+    expect(fs.existsSync(wt)).toBe(false);
+
+    // 未合入 = 分支上有 main 没有的 commit;只是 setup 出来还没提交的会被当干净残留删掉
+    addTask('TC2');
+    runCommand(createWorktreeCommand(), ['setup', 'TC2']);
+    const wt2 = path.join(root, '.nightowl', 'worktrees', 'TC2');
+    fs.writeFileSync(path.join(wt2, 'wip.txt'), 'w', 'utf8');
+    spawnSync('git', ['-C', wt2, 'add', 'wip.txt'], { encoding: 'utf8' });
+    spawnSync('git', ['-C', wt2, 'commit', '-q', '-m', '[#TC2] wip'], { encoding: 'utf8' });
+    const r2 = runCommand(createSweepCommand(), ['--clean']);
+    expect(r2.stdout).toContain('SWEEP_KEEP_UNMERGED:');
+    expect(fs.existsSync(wt2)).toBe(true);
   });
 
   it('sweep:SWEEP_CLEAN 与残留报告', () => {

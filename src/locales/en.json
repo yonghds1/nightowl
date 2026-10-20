@@ -111,7 +111,8 @@
     "ok": "✅ Review result recorded: {{result}}"
   },
   "sweep": {
-    "desc": "Sweep leftover worktrees"
+    "desc": "Sweep leftover worktrees",
+    "cleanOption": "Actually remove residual worktrees that are merged and clean (default: report only)"
   },
   "push": {
     "desc": "Push unpushed commits",

@@ -111,7 +111,8 @@
     "ok": "✅ 审查结果已记录: {{result}}"
   },
   "sweep": {
-    "desc": "清查残留 worktree"
+    "desc": "清查残留 worktree",
+    "cleanOption": "真正删除已合入且无未提交改动的残留 worktree(默认只报告)"
   },
   "push": {
     "desc": "推送未推送的 commit",

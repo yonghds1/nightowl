@@ -38,7 +38,8 @@ function parsePorcelain(out: string): WorktreeInfo[] {
 export function createSweepCommand(): Command {
   return new Command('sweep')
     .description(t('sweep.desc'))
-    .action(() => {
+    .option('--clean', '真正删除已合入且无未提交改动的残留 worktree(默认只报告)')
+    .action((opts: { clean?: boolean }) => {
       const wt = git(['worktree', 'list', '--porcelain']);
       if (wt.code !== 0) {
         console.error(`SWEEP_FAIL: git worktree list failed: ${wt.stderr || wt.stdout}`);
@@ -64,6 +65,32 @@ export function createSweepCommand(): Command {
           .map((ln) => ln.split(/\s+/)[0])
           .join(',');
         console.log(`${w.branch ?? w.head}\t${w.path}\t${unmerged}`);
+
+        if (!opts.clean) continue;
+
+        // --clean 的安全边界:只有"无未合入 commit"且"无未提交改动"才删。
+        // 任一条件不满足都保留现场 —— 清理是便利功能,绝不拿代码冒险。
+        if (unmerged) {
+          console.log(`SWEEP_KEEP_UNMERGED: ${w.path}`);
+          continue;
+        }
+        const st = git(['status', '--porcelain'], { cwd: w.path });
+        if (st.code !== 0) {
+          console.log(`SWEEP_KEEP_UNKNOWN: ${w.path}`);
+          continue;
+        }
+        if (st.stdout.trim()) {
+          console.log(`SWEEP_KEEP_DIRTY: ${w.path}`);
+          continue;
+        }
+        const rm = git(['worktree', 'remove', w.path]);
+        if (rm.code !== 0) {
+          console.log(`SWEEP_REMOVE_FAIL: ${w.path}: ${rm.stderr || rm.stdout}`);
+          continue;
+        }
+        // 分支已合入,用 -d(安全删除)而非 -D
+        if (w.branch) git(['branch', '-d', w.branch]);
+        console.log(`SWEEP_REMOVED: ${w.path}`);
       }
       if (!found) console.log('SWEEP_CLEAN');
     });

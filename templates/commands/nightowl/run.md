@@ -13,7 +13,7 @@
 2. 进入调度循环:
    ```
    while True:
-     nightowl sweep                      # 清残留 worktree(SWEEP_CLEAN 则继续)
+     nightowl sweep --clean              # 清残留 worktree(SWEEP_CLEAN 则继续)
      nightowl status                     # 看状态
      nightowl next                       # 取下一个任务(含 RESUME 检测)
      # 派实现子代理(worktree 隔离) → 实现→审查→测试→提交→合并回主分支→删 worktree
@@ -24,7 +24,7 @@
 
 ## 协议输出
 
-`next` 输出的 `# RESUME_MERGE`/`# RESUME_COMMITTED`/`# RESUME in_progress`/`NO_TASK`、`WORKTREE_ROOT:`/`PRD_PATH:`/`DESCRIPTION:`/`ACCEPTANCE:`/`VERIFY:`、`sweep` 的 `SWEEP_CLEAN`、`push` 的 `PUSH_OK`/`PUSH_NOTHING`/`PUSH_SKIPPED_NO_REMOTE` 是调度循环解析的机器协议,保持原样。
+`next` 输出的 `# RESUME_MERGE`/`# RESUME_COMMITTED`/`# RESUME in_progress`/`NO_TASK`、`WORKTREE_ROOT:`/`PRD_PATH:`/`DESCRIPTION:`/`ACCEPTANCE:`/`VERIFY:`、`sweep` 的 `SWEEP_CLEAN`/`SWEEP_REMOVED:`/`SWEEP_KEEP_UNMERGED:`/`SWEEP_KEEP_DIRTY:`、`push` 的 `PUSH_OK`/`PUSH_NOTHING`/`PUSH_SKIPPED_NO_REMOTE` 是调度循环解析的机器协议,保持原样。
 
 ## 原则
 
