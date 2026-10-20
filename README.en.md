@@ -89,7 +89,6 @@ nightowl workflow generate --template bugfix --no-apply     # Explicit template
 nightowl workflow generate workflow.yaml            # Save workflow and replace the pool by default
 nightowl workflow generate workflow.yaml --no-apply # Save/validate only; leave the pool unchanged
 nightowl workflow generate --apply                  # Reapply the saved workflow
-nightowl workflow show                             # Print saved workflow YAML
 nightowl workflow list                             # List stages, agents, tasks and dependencies
 ```
 
@@ -110,13 +109,22 @@ Stage `depends_on` references **stage IDs**; task `depends_on` references **task
 
 ## Usage (three phases)
 
+Each phase has a **slash command** entry point (Claude Code, installed to `.claude/commands/nightowl/` by `nightowl init`):
+
+| Slash command | Phase | Purpose |
+|---|---|---|
+| `/nightowl:plan` | Plan | Analyze requirements interactively, produce a task pool with machine gates |
+| `/nightowl:run` | Run | Silent unattended execution of the task pool |
+| `/nightowl:report` | Report | Generate the wrap-up report and report back |
+
+Slash commands are optional: saying "build X" / "start" / "report" also triggers the matching skill (`nightowl-plan` / `nightowl-run` / `nightowl-report`) by semantic match — same content, two entry points.
+
 ### plan — analyze requirements interactively
 
 - `nightowl init -u <your-name> --<platform>` project-level init: builds the `.nightowl/` task pool + auto-requests permissions + lays skills per platform (Claude → `.claude/skills/`; Codex/OpenCode/Antigravity → `.agents/skills/`, all committed to git, ready after clone); `--scope local` applies permissions to this machine only, `--skip-permissions` skips the permission request. `nightowl status` reports when project skills lag the current package; re-run `init` to refresh
 - `nightowl analyze` analyze the project and generate `.nightowl/nightowl.context.md` (stack / entry points / test commands / CI, which the implementer subagent reads first during run)
 - `nightowl add` add a task, fields: `--id --title --priority --est-min --assignee --desc --acceptance --depends-on --verify --slug`
 - `nightowl status` inspect the task pool
-- `nightowl schedule` adjust scheduling times (`--start --end --safety --retry-budget`)
 
 ### run — execute silently (no interaction)
 
@@ -133,7 +141,6 @@ Stage `depends_on` references **stage IDs**; task `depends_on` references **task
 ### report — wrap up (default after run)
 
 - `nightowl report` generate `.nightowl/nightowl.report.md` (task overview / blocked / review history / git history), auto-cleans checkpoints when all done
-- `nightowl resume` crash recovery: restore pool/state from checkpoint
 - `nightowl checkpoint <save|load|clear|status>` manage checkpoints (dual-buffer rotation, always one complete copy)
 
 ## All commands
@@ -146,7 +153,6 @@ Stage `depends_on` references **stage IDs**; task `depends_on` references **task
 | `next` | Next task |
 | `done` | Mark done (review + test gate) |
 | `block` | Block |
-| `schedule` | Scheduling time |
 | `workflow generate/show/list` | Compile, apply and inspect staged workflows |
 | `verify` | Run acceptance command |
 | `analyze` | Analyze project docs (produce project context) |
@@ -156,7 +162,6 @@ Stage `depends_on` references **stage IDs**; task `depends_on` references **task
 | `report` | Generate report |
 | `resume` | Resume after crash |
 | `checkpoint` | Checkpoint management |
-| `setup-permissions` | Top up permissions |
 | `supervise` | Unattended main-session driver (per-platform headless loop to continue run, exits when pool completes) |
 
 ## Project-level skills

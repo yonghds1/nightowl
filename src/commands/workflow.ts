@@ -54,12 +54,6 @@ export function createWorkflowCommand(): Command {
       });
     });
 
-  command.command('show')
-    .description(t('workflow.showDesc'))
-    .action(() => runWorkflowAction(() => {
-      console.log(yaml.dump(requireWorkflow(), { noRefs: true }).trimEnd());
-    }));
-
   command.command('list')
     .description(t('workflow.listDesc'))
     .action(() => runWorkflowAction(() => {

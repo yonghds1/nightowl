@@ -86,11 +86,6 @@
     "log": "🚫 {{id}} blocked: {{reason}}",
     "ok": "🚫 {{id}} marked blocked"
   },
-  "schedule": {
-    "desc": "Set retry budget",
-    "retryOption": "Retry budget",
-    "ok": "⏰ Retry budget: {{retry}}"
-  },
   "verify": {
     "desc": "Run verification commands",
     "failed": "❌ {{id}} verification command failed (exit code {{code}}): {{cmd}}"
@@ -142,15 +137,6 @@
     "sectionGit": "## Git History",
     "written": "📄 Report written to {{file}}"
   },
-  "resume": {
-    "desc": "Resume from checkpoint",
-    "noCheckpoint": "📭 No checkpoint, nothing to resume",
-    "corrupt": "❌ Checkpoint data incomplete, check .nightowl/nightowl.checkpoint.yaml",
-    "log": "♻️ Resumed from checkpoint ({{completed}}/{{total}} done)",
-    "ok": "✅ Restored pool/state from checkpoint: {{completed}}/{{total}} done",
-    "inProgress": "   In progress: {{id}} (next will return it first)",
-    "noInProgress": "   No in-progress task, next will pick the next executable task"
-  },
   "checkpoint": {
     "desc": "Manage checkpoint",
     "saved": "✅ Checkpoint saved ({{completed}}/{{total}})",
@@ -172,8 +158,6 @@
     "unknownAction": "❌ Unknown action: {{action}}(save/load/clear/status)"
   },
   "permissions": {
-    "scopeOption": "Permission write scope: project / local",
-    "setupDesc": "Add permissions",
     "added": "✅ Added {{n}} permission rules to {{target}}:",
     "already": "ℹ️ {{target}} already contains all nightowl permission rules, no change needed",
     "reload": "💡 Reload: restart the session to apply",
@@ -214,7 +198,6 @@
     "fileArgument": "Workflow YAML input (default: saved .nightowl/nightowl.workflow.yaml)",
     "applyOption": "Replace the task pool, keeping the independent execution state (default)",
     "noApplyOption": "Save/validate the workflow without changing the task pool or execution state",
-    "showDesc": "Show the saved workflow as YAML",
     "listDesc": "List saved workflow stages, agents, tasks and dependencies",
     "noWorkflow": "WORKFLOW_NOT_FOUND: No saved workflow at {{file}}; run nightowl workflow generate <file> or use --intent / --template",
     "failed": "❌ Workflow command failed: {{error}}",

@@ -6,7 +6,6 @@ import { setBaseDir } from '../src/paths.js';
 import { loadState, saveState, loadPool, savePool } from '../src/state.js';
 import { createInitCommand } from '../src/commands/init.js';
 import { createAddCommand } from '../src/commands/add.js';
-import { createScheduleCommand } from '../src/commands/schedule.js';
 import {
   progressSig,
   backoffSec,
@@ -33,6 +32,14 @@ beforeEach(() => {
 afterEach(() => {
   fs.rmSync(root, { recursive: true, force: true });
 });
+
+/** 直接改 pool.schedule.retry_budget(schedule 命令已移除,测试只关心 supervise 消费该值)。 */
+function setRetryBudget(n: number): void {
+  const pool = loadPool();
+  if (!pool) throw new Error('no pool');
+  pool.schedule.retry_budget = n;
+  savePool(pool);
+}
 
 function addTask(id: string, deps: string[] = []): void {
   const args = ['--id', id, '--title', `Task ${id}`, '--priority', 'P0', '--est-min', '15'];
@@ -215,7 +222,7 @@ describe('superviseLoop 循环', () => {
   ])('$errorCode 立即退出且不消耗业务重试预算 $retryBudget', async ({ errorCode, retryBudget }) => {
     addTask('T1');
     addTask('T2');
-    runCommand(createScheduleCommand(), ['--retry-budget', String(retryBudget)]);
+    setRetryBudget(String(retryBudget));
     const pool = loadPool();
     const state = loadState();
     const logs: string[] = [];
@@ -238,7 +245,7 @@ describe('superviseLoop 循环', () => {
 
   it('回退启动时环境错误立即退出并保留任务', async () => {
     addTask('T1');
-    runCommand(createScheduleCommand(), ['--retry-budget', '1']);
+    setRetryBudget('1');
     const pool = loadPool();
     const host: HeadlessRun = { ...failHost };
     const logs: string[] = [];
@@ -281,7 +288,7 @@ describe('superviseLoop 循环', () => {
 
   it('retry 耗尽阻塞任务(有阻塞退出码 1)', async () => {
     addTask('T1');
-    runCommand(createScheduleCommand(), ['--retry-budget', '1']);
+    setRetryBudget('1');
     const captured = captureConsole();
     const logs: string[] = [];
     const code = await superviseLoop(baseOpts(), (l) => logs.push(l), failHost);
@@ -297,7 +304,7 @@ describe('superviseLoop 循环', () => {
   it('失败但有进展不累计失败(不误阻塞 next 出的新任务)', async () => {
     addTask('T1');
     addTask('T2');
-    runCommand(createScheduleCommand(), ['--retry-budget', '1']);
+    setRetryBudget('1');
     // fake host:每轮先完成 in_progress,再以非 0 退出(模拟超时前完成了任务)
     const script = `
       const fs = require('fs');
@@ -323,7 +330,7 @@ describe('superviseLoop 循环', () => {
 
   it('超时强制结束本轮并计失败', async () => {
     addTask('T1');
-    runCommand(createScheduleCommand(), ['--retry-budget', '1']);
+    setRetryBudget('1');
     // fake host 挂起 5s;supervise 用 0.001min(60ms)超时 kill
     const hangHost: HeadlessRun = { cmd: 'node', args: () => ['-e', 'setTimeout(() => {}, 5000)'] };
     const captured = captureConsole();

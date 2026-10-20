@@ -12,6 +12,11 @@ const DOC_FILES = [
   'skills/nightowl-report/SKILL.md',
   'skills/nightowl-verify/SKILL.md',
   'skills/nightowl-workflows/SKILL.md',
+  // 斜杠命令模板：三阶段显式入口，与技能同源。曾于 2026-08-12 因"与技能重复"被删，
+  // 2026-10-20 恢复；加入本表以防再次被静默删除（校验其引用的命令/选项真实存在）。
+  'templates/commands/nightowl/plan.md',
+  'templates/commands/nightowl/run.md',
+  'templates/commands/nightowl/report.md',
 ];
 
 // 宿主(Claude/Codex)的启动参数,不是 nightowl 选项;出现在技能提示文案里,单独校验"仍在文档中"

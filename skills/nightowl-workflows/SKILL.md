@@ -20,7 +20,6 @@ nightowl workflow generate --intent "检查鉴权边界" --template audit --no-a
 nightowl workflow generate --template refactor --no-apply
 # 已有声明式 YAML
 nightowl workflow generate workflow.yaml --no-apply
-nightowl workflow show
 nightowl workflow list
 ```
 
@@ -47,7 +46,7 @@ CLI 产物是可编辑骨架，不是已经完成需求分析的实施计划。�
 2. 使用 `--no-apply` 先保存骨架；编辑 `.nightowl/nightowl.workflow.yaml`，将通用任务拆成具体交付，补充验收标准、估时和项目实际支持的 L1/L2 命令。意图文本只作需求数据，不拼接进 shell 门禁。
 3. bugfix 必须先复现与根因定位，并有修复前失败、修复后通过的测试；refactor 必须先记录通过的行为基线并保持外部契约；audit 只读分析与报告，不自动修复。审计门禁也要确认不会改动源码。
 4. `git diff --check` 只检查补丁格式，不证明业务正确、审查通过或审计只读；这些验收需明确证据。所有任务必须有适配项目的客观门禁，不能将占位检查当作业务验收。
-5. 使用 `nightowl workflow show` / `nightowl workflow list` 核对阶段、角色与依赖；执行 `nightowl workflow generate --apply` 应用已编辑工作流，再用 `nightowl status` 核对任务池。
+5. 使用 `nightowl workflow list` 核对阶段、角色与依赖；执行 `nightowl workflow generate --apply` 应用已编辑工作流，再用 `nightowl status` 核对任务池。
 
 默认 generate 会替换任务池；`--no-apply` 不读写任务池，也不改独立执行状态。应用保留既有 schedule/checkpoint（除非 YAML 显式覆盖），但不会清空已完成、阻塞或进行中状态。
 生成任务 ID 为 `<原型>-<阶段>`，同原型重复生成会复用 ID；如果启动新一轮交付，先明确现有执行状态并为新任务设置唯一 ID，不能无声清空状态或把旧任务当作新任务执行。

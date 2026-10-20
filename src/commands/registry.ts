@@ -5,16 +5,13 @@ import { createStatusCommand } from './status.js';
 import { createNextCommand } from './next.js';
 import { createDoneCommand } from './done.js';
 import { createBlockCommand } from './block.js';
-import { createScheduleCommand } from './schedule.js';
 import { createVerifyCommand } from './verify.js';
 import { createAnalyzeCommand } from './analyze.js';
 import { createReviewCommand } from './review.js';
 import { createSweepCommand } from './sweep.js';
 import { createPushCommand } from './push.js';
 import { createReportCommand } from './report.js';
-import { createResumeCommand } from './resume.js';
 import { createCheckpointCommand } from './checkpoint.js';
-import { createSetupPermissionsCommand } from './setup-permissions.js';
 import { createSelfcheckCommand } from './selfcheck.js';
 import { createSuperviseCommand } from './supervise.js';
 import { createWorktreeCommand } from './worktree.js';
@@ -30,16 +27,13 @@ export const COMMAND_FACTORIES: CommandFactory[] = [
   createNextCommand,
   createDoneCommand,
   createBlockCommand,
-  createScheduleCommand,
   createVerifyCommand,
   createAnalyzeCommand,
   createReviewCommand,
   createSweepCommand,
   createPushCommand,
   createReportCommand,
-  createResumeCommand,
   createCheckpointCommand,
-  createSetupPermissionsCommand,
   createSelfcheckCommand,
   createSuperviseCommand,
   createWorktreeCommand,

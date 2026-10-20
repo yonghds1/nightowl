@@ -251,9 +251,9 @@ describe('workflowToPool', () => {
 });
 
 describe('nightowl workflow commands', () => {
-  it('registers workflow with generate/show/list subcommands', () => {
+  it('registers workflow with generate/list subcommands', () => {
     const registered = COMMAND_FACTORIES.map((create) => create()).find((c) => c.name() === 'workflow');
-    expect(registered?.commands.map((c) => c.name())).toEqual(['generate', 'show', 'list']);
+    expect(registered?.commands.map((c) => c.name())).toEqual(['generate', 'list']);
   });
 
   it.each([[], ['--apply']])('generate %j replaces the pool but preserves state bytes/settings', (...flags) => {
@@ -306,16 +306,6 @@ describe('nightowl workflow commands', () => {
     expect(loadPool()).toEqual(workflowToPool(workflow()));
   });
 
-  it('show prints parseable workflow YAML without modifying files', () => {
-    saveWorkflow(workflow());
-    const before = fs.readFileSync(WORKFLOW_FILE(), 'utf8');
-    const result = runCommand(createWorkflowCommand(), ['show']);
-    expect(result.exitCode).toBeUndefined();
-    expect(yaml.load(result.stdout)).toEqual(workflow());
-    expect(fs.readFileSync(WORKFLOW_FILE(), 'utf8')).toBe(before);
-    expect(fs.existsSync(POOL_FILE())).toBe(false);
-  });
-
   it('list shows all stage agents, tasks and dependencies without modifying the pool', () => {
     saveWorkflow(workflow());
     const result = runCommand(createWorkflowCommand(), ['list']);
@@ -325,13 +315,13 @@ describe('nightowl workflow commands', () => {
     expect(fs.existsSync(POOL_FILE())).toBe(false);
   });
 
-  it.each(['generate', 'show', 'list'])('%s fails clearly when no workflow exists', (subcommand) => {
+  it.each(['generate', 'list'])('%s fails clearly when no workflow exists', (subcommand) => {
     const result = runCommand(createWorkflowCommand(), [subcommand]);
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain('WORKFLOW_NOT_FOUND');
   });
 
-  it.each(['generate', 'show', 'list'])('%s fails clearly on an invalid saved graph', (subcommand) => {
+  it.each(['generate', 'list'])('%s fails clearly on an invalid saved graph', (subcommand) => {
     const invalid = workflow();
     invalid.stages[0].depends_on = ['review'];
     fs.mkdirSync(path.dirname(WORKFLOW_FILE()), { recursive: true });

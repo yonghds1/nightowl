@@ -86,11 +86,6 @@
     "log": "🚫 {{id}} 阻塞: {{reason}}",
     "ok": "🚫 {{id}} 已标记阻塞"
   },
-  "schedule": {
-    "desc": "设置重试预算",
-    "retryOption": "retry 预算",
-    "ok": "⏰ retry 预算: {{retry}}"
-  },
   "verify": {
     "desc": "跑验收命令",
     "failed": "❌ {{id}} 验收命令失败(退出码 {{code}}): {{cmd}}"
@@ -142,15 +137,6 @@
     "sectionGit": "## git 历史",
     "written": "📄 报告已写入 {{file}}"
   },
-  "resume": {
-    "desc": "从 checkpoint 恢复",
-    "noCheckpoint": "📭 没有 checkpoint,无需恢复",
-    "corrupt": "❌ checkpoint 数据不完整,请检查 .nightowl/nightowl.checkpoint.yaml",
-    "log": "♻️ 从 checkpoint 恢复 ({{completed}}/{{total}} 完成)",
-    "ok": "✅ 已从 checkpoint 恢复 pool/state: {{completed}}/{{total}} 完成",
-    "inProgress": "   进行中: {{id}} (next 会优先返回它)",
-    "noInProgress": "   无进行中任务,next 会选下一个可执行任务"
-  },
   "checkpoint": {
     "desc": "管理 checkpoint",
     "saved": "✅ checkpoint 已保存 ({{completed}}/{{total}})",
@@ -172,8 +158,6 @@
     "unknownAction": "❌ 未知动作: {{action}}(save/load/clear/status)"
   },
   "permissions": {
-    "scopeOption": "权限写入范围: project / local",
-    "setupDesc": "补权限",
     "added": "✅ 已添加 {{n}} 条权限规则到 {{target}}:",
     "already": "ℹ️ {{target}} 已包含全部 nightowl 权限规则,无需改动",
     "reload": "💡 重新加载:重启会话生效",
@@ -214,7 +198,6 @@
     "fileArgument": "工作流 YAML 输入（默认读取已保存的 .nightowl/nightowl.workflow.yaml）",
     "applyOption": "替换任务池，保留独立执行状态（默认）",
     "noApplyOption": "仅保存、校验工作流，不修改任务池与独立执行状态",
-    "showDesc": "以 YAML 显示已保存的工作流",
     "listDesc": "列出已保存工作流的阶段、agent、任务与阶段依赖",
     "noWorkflow": "WORKFLOW_NOT_FOUND: {{file}} 中没有已保存的工作流，请运行 nightowl workflow generate <file> 或使用 --intent / --template",
     "failed": "❌ 工作流命令失败：{{error}}",

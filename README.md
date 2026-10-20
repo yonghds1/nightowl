@@ -89,7 +89,6 @@ nightowl workflow generate --template bugfix --no-apply     # 显式原型
 nightowl workflow generate workflow.yaml            # 保存工作流，默认替换任务池
 nightowl workflow generate workflow.yaml --no-apply # 仅保存、校验，不改任务池
 nightowl workflow generate --apply                  # 将已保存的工作流重新应用
-nightowl workflow show                             # 输出已保存工作流的 YAML
 nightowl workflow list                             # 列出阶段、agent、任务及阶段依赖
 ```
 
@@ -110,13 +109,22 @@ nightowl workflow list                             # 列出阶段、agent、任�
 
 ## 使用流程（三阶段）
 
+三个阶段各有**斜杠命令**入口（Claude Code，`nightowl init` 铺入 `.claude/commands/nightowl/`）：
+
+| 斜杠命令 | 阶段 | 说明 |
+|---|---|---|
+| `/nightowl:plan` | 规划 | 交互式分析需求，拆出带机器门禁的任务池 |
+| `/nightowl:run` | 执行 | 静默无人值守跑完任务池 |
+| `/nightowl:report` | 汇报 | 生成收尾报告并当面汇报 |
+
+不记斜杠命令也能用：直接说"做个功能"/"开工"/"汇报"，同名技能（`nightowl-plan` / `nightowl-run` / `nightowl-report`）会按语义匹配触发，两者内容同源。
+
 ### plan —— 交互式分析需求
 
 - `nightowl init -u <你的名字> --<平台>` 项目级初始化：建 `.nightowl/` 任务池 + 自动申请权限 + 按平台铺技能（Claude → `.claude/skills/`；Codex/OpenCode/Antigravity → `.agents/skills/`，全部进 git，clone 后即用）；`--scope local` 权限只对本机生效，`--skip-permissions` 跳过权限申请。技能版本落后当前包时 `nightowl status` 会提示，重跑 `init` 重铺
 - `nightowl analyze` 分析项目上下文，生成 `.nightowl/nightowl.context.md`（技术栈/入口/测试命令/CI，run 阶段实现子代理先读它）
 - `nightowl add` 加任务，字段：`--id --title --priority --est-min --assignee --desc --acceptance --depends-on --verify --slug`
 - `nightowl status` 看任务池
-- `nightowl schedule` 调整重试预算（`--retry-budget`）
 
 ### run —— 静默执行（无交互）
 
@@ -133,7 +141,6 @@ nightowl workflow list                             # 列出阶段、agent、任�
 ### report —— 收尾汇总（run 后默认执行）
 
 - `nightowl report` 生成 `.nightowl/nightowl.report.md`（任务总览 / 阻塞 / 审查过程 / git 历史），全部完成自动清理 checkpoint
-- `nightowl resume` 崩溃续跑：从 checkpoint 恢复 pool/state
 - `nightowl checkpoint <save|load|clear|status>` 管理 checkpoint（双轮切换，始终留一份完整数据）
 
 ## 全部命令
@@ -146,7 +153,6 @@ nightowl workflow list                             # 列出阶段、agent、任�
 | `next` | 下一个任务 |
 | `done` | 标记完成（审查 + 测试关口） |
 | `block` | 阻塞 |
-| `schedule` | 重试预算 |
 | `workflow generate/show/list` | 编译、应用和查看分阶段工作流 |
 | `verify` | 跑验收命令 |
 | `analyze` | 项目文档分析（产出项目上下文） |
@@ -156,7 +162,6 @@ nightowl workflow list                             # 列出阶段、agent、任�
 | `report` | 生成报告 |
 | `resume` | 崩溃续跑 |
 | `checkpoint` | checkpoint 管理 |
-| `setup-permissions` | 补权限 |
 | `supervise` | 无人值守驱动主会话（按平台循环拉起宿主 headless 延续 run，任务池完成退出） |
 
 ## 项目级技能

@@ -97,15 +97,20 @@ describe('claude platform', () => {
     expect(fs.existsSync(path.join(root, '.claude', 'settings.json'))).toBe(false);
   });
 
-  it('installTemplates 铺 .claude/skills + hook(不再铺命令)', () => {
+  it('installTemplates 铺 .claude/skills + 斜杠命令 + hook', () => {
     const hashRec: Record<string, string> = {};
     const items = claude.installTemplates(root, hashRec, false);
     for (const n of ['nightowl-plan', 'nightowl-run', 'nightowl-report', 'nightowl-verify']) {
       expect(fs.existsSync(path.join(root, '.claude', 'skills', n, 'SKILL.md'))).toBe(true);
     }
     expect(fs.existsSync(path.join(root, '.claude', 'hooks', 'permission-mode.mjs'))).toBe(true);
-    // 命令铺装已移除(只留技能):斜杠命令与技能内容重复,2026-08-12 决策
-    expect(fs.existsSync(path.join(root, '.claude', 'commands', 'nightowl'))).toBe(false);
+    // 斜杠命令恢复:用户需要明确的三阶段入口(/nightowl:plan|run|report),
+    // 技能负责语义匹配兜底,两者同源不同入口。
+    for (const n of ['plan', 'run', 'report']) {
+      const f = path.join(root, '.claude', 'commands', 'nightowl', `${n}.md`);
+      expect(fs.existsSync(f)).toBe(true);
+      expect(fs.readFileSync(f, 'utf8')).toContain('# Nightowl');
+    }
     expect(items.every((i) => i.status === 'installed')).toBe(true);
   });
 

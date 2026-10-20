@@ -8,6 +8,10 @@ import type { InstallItem, PermissionsResult, Platform } from './types.js';
 
 import { PROJECT_SKILLS } from '../skills.js';
 
+// Claude Code 斜杠命令(/nightowl:plan|run|report):铺到 .claude/commands/nightowl/,
+// 与技能同源不同入口——斜杠命令给用户明确触发点,技能负责语义匹配兜底。
+export const SLASH_COMMANDS = ['plan', 'run', 'report'] as const;
+
 // Claude Code 权限规则:写入 .claude/settings.json 的 permissions.allow,
 // 让 plan/run 阶段的 nightowl 与 git 命令不再弹权限确认。
 export const PERMISSION_RULES = [
@@ -117,6 +121,16 @@ function installTemplates(
     results.push({
       key,
       status: installFile(path.join(skillsSrc, name, 'SKILL.md'), dst, hashRec, key, force, render),
+    });
+  }
+  // 斜杠命令模板:与技能同源,内容更精简,聚焦单阶段入口
+  const cmdSrc = path.join(pkgRoot(), 'templates', 'commands', 'nightowl');
+  for (const name of SLASH_COMMANDS) {
+    const key = path.join('.claude', 'commands', 'nightowl', `${name}.md`);
+    const dst = path.join(projectRoot, key);
+    results.push({
+      key,
+      status: installFile(path.join(cmdSrc, `${name}.md`), dst, hashRec, key, force, render),
     });
   }
   // PreToolUse hook 脚本(记录权限模式,供 selfcheck 读取);放 .claude/ 下随项目入库
