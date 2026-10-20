@@ -14,6 +14,16 @@ export function getWorktreeBranch(id: string): string {
   return `nightowl/${id}`;
 }
 
+/** 校验任务 id;非法时只打印一行错误并退出(不让 Node 调用栈泄漏到 stderr 污染协议输出)。 */
+function requireTaskId(id: string): void {
+  try {
+    assertTaskId(id);
+  } catch (err: unknown) {
+    console.error((err as Error).message);
+    process.exit(1);
+  }
+}
+
 function branchExists(branch: string): boolean {
   return git(['show-ref', '--verify', '--quiet', `refs/heads/${branch}`]).code === 0;
 }
@@ -28,7 +38,7 @@ export function createWorktreeCommand(): Command {
     .argument('<id>')
     .option('--base <branch>', '基于的分支', undefined)
     .action((id: string, opts: { base?: string }) => {
-      assertTaskId(id);
+      requireTaskId(id);
       const targetDir = getWorktreePath(id);
       const branch = getWorktreeBranch(id);
 
@@ -76,7 +86,7 @@ export function createWorktreeCommand(): Command {
     .argument('<id>')
     .option('--no-strict', '跳过 commit 标记检查')
     .action((id: string, opts: { strict: boolean }) => {
-      assertTaskId(id);
+      requireTaskId(id);
       const branch = getWorktreeBranch(id);
       if (!branchExists(branch)) {
         console.error(`WORKTREE_MERGE_FAIL: branch not found: ${branch}`);
@@ -125,7 +135,7 @@ export function createWorktreeCommand(): Command {
     .option('-f, --force', '彻底清理(含未提交改动)', false)
     .option('--discard', '放弃并彻底清理未提交改动', false)
     .action((id: string, opts: { force: boolean; discard: boolean }) => {
-      assertTaskId(id);
+      requireTaskId(id);
       const targetDir = getWorktreePath(id);
       const branch = getWorktreeBranch(id);
       const isForce = Boolean(opts.force || opts.discard);

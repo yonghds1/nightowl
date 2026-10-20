@@ -76,7 +76,12 @@ export function createVerifyCommand(): Command {
         console.error('ERROR: 必须提供任务ID (例如: nightowl verify --id <id> 或 nightowl verify <id>)');
         process.exit(1);
       }
-      assertTaskId(taskId);
+      try {
+        assertTaskId(taskId);
+      } catch (err: unknown) {
+        console.error((err as Error).message);
+        process.exit(1);
+      }
 
       const pool = loadPool();
       if (!pool) {
