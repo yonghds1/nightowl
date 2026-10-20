@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import fs, { existsSync, mkdirSync, rmSync, readdirSync } from 'node:fs';
 import path from 'node:path';
-import { git } from '../git.js';
+import { git, probeGit } from '../git.js';
 import { getBaseDir } from '../paths.js';
 import { loadPool } from '../state.js';
 import { assertTaskId } from '../task-id.js';
@@ -66,6 +66,13 @@ export function createWorktreeCommand(): Command {
     .option('--base <branch>', '基于的分支', undefined)
     .action((id: string, opts: { base?: string }) => {
       requireTaskId(id);
+      // 非 git 环境(多仓父目录/普通目录)没有可隔离的对象:降级为无隔离,流程不能断。
+      // agent 看到 WORKTREE_SKIPPED 应直接在主目录实现,后续 verify→review→done 照走。
+      const env = probeGit();
+      if (!env.isRepo) {
+        console.log(`WORKTREE_SKIPPED: not a git repo, implement directly in ${process.cwd()}`);
+        return;
+      }
       const targetDir = getWorktreePath(id);
       const branch = getWorktreeBranch(id);
 
@@ -117,6 +124,12 @@ export function createWorktreeCommand(): Command {
     .option('--no-strict', '跳过 commit 标记检查')
     .action((id: string, opts: { strict: boolean }) => {
       requireTaskId(id);
+      // 非 git 环境无分支可合并:跳过即"成功"语义,让调度流程继续走 verify / done
+      const env = probeGit();
+      if (!env.isRepo) {
+        console.log(`WORKTREE_MERGE_SKIPPED: not a git repo (no branch to merge)`);
+        return;
+      }
       const branch = getWorktreeBranch(id);
       if (!branchExists(branch)) {
         console.error(`WORKTREE_MERGE_FAIL: branch not found: ${branch}`);
@@ -166,6 +179,12 @@ export function createWorktreeCommand(): Command {
     .option('--discard', '放弃并彻底清理未提交改动', false)
     .action((id: string, opts: { force: boolean; discard: boolean }) => {
       requireTaskId(id);
+      // 非 git 环境 setup 从未建过 worktree:无物可清,直接按"干净"返回
+      const env = probeGit();
+      if (!env.isRepo) {
+        console.log(`WORKTREE_CLEAN_SKIPPED: not a git repo (no worktree was created)`);
+        return;
+      }
       const targetDir = getWorktreePath(id);
       const branch = getWorktreeBranch(id);
       const isForce = Boolean(opts.force || opts.discard);
@@ -204,6 +223,11 @@ export function createWorktreeCommand(): Command {
   cmd
     .command('list')
     .action(() => {
+      const env = probeGit();
+      if (!env.isRepo) {
+        console.log('WORKTREE_EMPTY');
+        return;
+      }
       const r = git(['worktree', 'list', '--porcelain']);
       if (r.code !== 0) {
         console.error(`WORKTREE_LIST_FAIL: ${r.stderr || r.stdout}`);

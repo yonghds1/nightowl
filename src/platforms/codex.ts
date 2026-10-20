@@ -22,7 +22,7 @@ const CODEX_TEMPLATE_VARS: Record<string, string> = {
   PLATFORM_ASK:
     '用纯文本逐题提问,一次一题,每题编号给 2-4 个具体选项(Codex 无 AskUserQuestion 类交互工具)',
   PLATFORM_RELAUNCH:
-    '`codex exec --sandbox workspace-write`(静默需在 .codex/config.toml 配 `approval_policy = "never"`;完全免沙箱用 `--dangerously-bypass-approvals-and-sandbox`)',
+    '`codex exec --sandbox workspace-write --skip-git-repo-check`(静默需在 .codex/config.toml 配 `approval_policy = "never"`;非 git 目录必须带 --skip-git-repo-check;完全免沙箱用 `--dangerously-bypass-approvals-and-sandbox`)',
   PLATFORM_HEADLESS: '`codex exec resume --last <续跑指令>`(首轮无历史会话去掉 resume 新起)',
   PLATFORM_SUBAGENT_D:
     'Codex 子代理(无内置 worktree 隔离):先 `git worktree add <路径> -b <分支>` 建隔离工作区,\n       再指示 Codex 派 worker 子代理在该 worktree 目录下实现、commit',
@@ -150,34 +150,62 @@ function writePermissions(projectRoot: string, scope: 'project' | 'local' = 'pro
   fs.writeFileSync(cfgTarget, cfg, 'utf8');
   targets.push(cfgTarget);
 
-  // hooks.json:PreToolUse → node 跑共用脚本,只写不拦(退出 0)。
-  // 用户已有同事件 hooks 时追加我们的 matcher,不整体替换(否则会静默摧毁其自配钩子)。
+  // hooks.json 结构(codex 0.163.0 实测 schema,与 Claude 的 settings.json 完全不同):
+  //   顶层 { "hooks": { "<事件名>": [MatcherGroup...] } } —— 顶层直接放 PreToolUse 会报
+  //   unknown field `PreToolUse`, expected `description` or `hooks`。
+  //   MatcherGroup { matcher?, hooks: [HookEntry] }。
+  //   HookEntry { type: "command", command: "<一条 shell 命令字符串>" } —— 实测 args 字段
+  //   (Claude 风格)被静默忽略,必须把参数拼进 command 字符串。
+  // 用户已有同事件 group 时追加我们的 hook entry,不整体替换(否则会静默摧毁其自配钩子)。
   const hookPath = path.join('.codex', 'hooks', 'permission-mode.mjs');
-  const ours = { type: 'command', command: 'node', args: [hookPath] };
-  const existingMatchers = Array.isArray(hooksData.PreToolUse) ? hooksData.PreToolUse : [];
-  const alreadyOurs = existingMatchers.some((matcher) => commandMatches(matcher, hookPath));
+  const oursCommand = `node ${hookPath}`;
+  const oursEntry = { type: 'command', command: oursCommand };
+
+  // 兼容迁移:Claude 风格的 { "<事件>": [ {hooks:[...]} ] }(事件在顶层)整体搬进 hooks 表。
+  // 事件键之外的用户键(如 description)原样保留。
+  const events = hooksData.hooks && typeof hooksData.hooks === 'object' && !Array.isArray(hooksData.hooks)
+    ? (hooksData.hooks as Record<string, unknown>)
+    : null;
+  const legacyKeys = Object.keys(hooksData).filter(
+    (k) => k !== 'hooks' && k !== 'description' && Array.isArray(hooksData[k]),
+  );
+  let eventTable: Record<string, unknown>;
+  if (events) {
+    eventTable = events;
+  } else {
+    eventTable = {};
+    for (const k of legacyKeys) {
+      eventTable[k] = hooksData[k];
+      delete hooksData[k];
+    }
+  }
+
+  const groups = Array.isArray(eventTable.PreToolUse) ? (eventTable.PreToolUse as unknown[]) : [];
+  const alreadyOurs = groups.some((g) => groupHasOurCommand(g, hookPath));
   let hooksAdded = false;
   if (!alreadyOurs) {
-    hooksData.PreToolUse = [...existingMatchers, { hooks: [ours] }];
+    eventTable.PreToolUse = [...groups, { hooks: [oursEntry] }];
     added.push('hooks.PreToolUse → permission-mode.mjs');
     hooksAdded = true;
   }
+  hooksData.hooks = eventTable;
   fs.writeFileSync(hookTarget, `${JSON.stringify(hooksData, null, 2)}\n`, 'utf8');
   targets.push(hookTarget);
 
   return { added, target: targets.join(', '), hooksAdded };
 }
 
-/** matcher 是否已含指向目标 hook 脚本的 command entry(按路径后缀比较,容忍绝对/相对写法差异)。 */
-function commandMatches(matcher: unknown, hookPath: string): boolean {
-  const m = matcher as { hooks?: unknown } | null;
-  if (!m || !Array.isArray(m.hooks)) return false;
+/** group(任意层级的 matcher 结构)里是否已含指向目标脚本的 command(按 command 字符串后缀匹配)。 */
+function groupHasOurCommand(group: unknown, hookPath: string): boolean {
+  if (!group || typeof group !== 'object') return false;
+  const entries = (group as { hooks?: unknown }).hooks;
+  if (!Array.isArray(entries)) return false;
   const want = path.normalize(hookPath).replaceAll('\\', '/');
-  return m.hooks.some((h) => {
-    const entry = h as { args?: unknown; command?: unknown };
-    if (!Array.isArray(entry?.args)) return false;
-    return entry.args.some(
-      (a) => typeof a === 'string' && path.normalize(a).replaceAll('\\', '/').endsWith(want),
+  return entries.some((e) => {
+    const command = (e as { command?: unknown } | null)?.command;
+    return (
+      typeof command === 'string' &&
+      path.normalize(command).replaceAll('\\', '/').endsWith(want)
     );
   });
 }
@@ -210,16 +238,29 @@ export const codex: Platform = {
   installTemplates,
   writePermissions,
   detectBypass,
-  // --full-auto 已废弃;静默靠 config approval_policy=never(workspace-write)或显式 bypass 标志
-  nonInteractiveCmd: 'codex exec --sandbox workspace-write',
+  // --full-auto 已废弃;静默靠 config approval_policy=never(workspace-write)或显式 bypass 标志。
+  // --dangerously-bypass-hook-trust:无人值守轮里 hook 无法走交互信任流程,缺它 hook 静默不执行
+  // (实测 codex 0.163.0);只豁免 hook 信任,不放大沙箱权限。
+  nonInteractiveCmd:
+    'codex exec --sandbox workspace-write --skip-git-repo-check --dangerously-bypass-hook-trust',
   headlessRun: {
     cmd: 'codex',
+    // --skip-git-repo-check:任务根可能不是 git 仓库(多仓父目录),没它 codex 直接拒启动
+    // (实测:"Not inside a trusted directory and --skip-git-repo-check was not specified")。
     // 续接用 `codex exec resume --last <prompt>`;首轮无历史会话去掉 resume 新起。
     // sandbox 权限来自 init 写入的 .codex/config.toml(approval_policy=never + workspace-write + 放网)。
-    // 注:本机无 codex CLI 未实测;若 resume 语义有出入,待真实环境修正。
     args(prompt, useContinue) {
-      if (useContinue) return ['exec', 'resume', '--last', prompt];
-      return ['exec', '--sandbox', 'workspace-write', prompt];
+      if (useContinue) {
+        return ['exec', 'resume', '--last', prompt, '--skip-git-repo-check', '--dangerously-bypass-hook-trust'];
+      }
+      return [
+        'exec',
+        '--skip-git-repo-check',
+        '--sandbox',
+        'workspace-write',
+        '--dangerously-bypass-hook-trust',
+        prompt,
+      ];
     },
   },
 };

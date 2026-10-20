@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { git } from '../git.js';
+import { git, probeGit } from '../git.js';
 import { log } from '../state.js';
 import { t } from '../i18n.js';
 
@@ -8,6 +8,12 @@ export function createPushCommand(): Command {
     .description(t('push.desc'))
     .action(() => {
       console.log(t('push.title'));
+      // 非 git 环境(多仓父目录)没有统一的 remote 可推:推送只能发生在有 git 的仓库。
+      // 各子仓的推送由任务命令自带(cd 子仓 && git push),nightowl 不越俎代庖。
+      if (!probeGit().isRepo) {
+        console.log('PUSH_SKIPPED_NO_GIT');
+        return;
+      }
       const remotes = git(['remote']).stdout.split(/\s+/).filter(Boolean);
       if (!remotes.length) {
         console.log(t('push.noRemote'));

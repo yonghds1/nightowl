@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { git } from '../git.js';
+import { git, probeGit } from '../git.js';
 import { t } from '../i18n.js';
 
 interface WorktreeInfo {
@@ -40,6 +40,11 @@ export function createSweepCommand(): Command {
     .description(t('sweep.desc'))
     .option('--clean', '真正删除已合入且无未提交改动的残留 worktree(默认只报告)')
     .action((opts: { clean?: boolean }) => {
+      // 非 git 环境从未建过 worktree,现场视为干净(run.md 流程里 SWEEP_CLEAN 即继续)
+      if (!probeGit().isRepo) {
+        console.log('SWEEP_CLEAN');
+        return;
+      }
       const wt = git(['worktree', 'list', '--porcelain']);
       if (wt.code !== 0) {
         console.error(`SWEEP_FAIL: git worktree list failed: ${wt.stderr || wt.stdout}`);

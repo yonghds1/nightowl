@@ -148,25 +148,42 @@ describe('codex platform', () => {
     expect(cfg2).toBe(cfg);
   });
 
-  it('writePermissions 保留用户既有 PreToolUse hooks,仅追加我们的 matcher', () => {
+  it('writePermissions:用户旧(Claude 风格顶层事件键)迁移进 hooks 表,保留用户钩子仅追加', () => {
     fs.mkdirSync(path.join(root, '.codex'), { recursive: true });
     const userHooks = {
-      PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'node', args: ['my-audit.mjs'] }] }],
+      PreToolUse: [{ hooks: [{ type: 'command', command: 'node my-audit.mjs' }] }],
       PostToolUse: [{ hooks: [{ type: 'command', command: 'echo' }] }],
     };
     fs.writeFileSync(path.join(root, '.codex', 'hooks.json'), JSON.stringify(userHooks, null, 2), 'utf8');
     const res = codex.writePermissions(root, 'project');
     expect(res.hooksAdded).toBe(true);
     const hooks = JSON.parse(fs.readFileSync(path.join(root, '.codex', 'hooks.json'), 'utf8'));
-    expect(hooks.PreToolUse).toHaveLength(2);
-    expect(JSON.stringify(hooks.PreToolUse[0])).toContain('my-audit.mjs');
-    expect(JSON.stringify(hooks.PreToolUse[1])).toContain('permission-mode.mjs');
-    expect(hooks.PostToolUse).toHaveLength(1);
+    // codex 0.163.0 实测 schema:事件表在顶层 hooks 字段下
+    expect(hooks.PreToolUse).toBeUndefined();
+    const groups = hooks.hooks.PreToolUse;
+    expect(groups).toHaveLength(2);
+    expect(JSON.stringify(groups[0])).toContain('my-audit.mjs');
+    expect(JSON.stringify(groups[1])).toContain('permission-mode.mjs');
+    expect(hooks.hooks.PostToolUse).toHaveLength(1);
     // 幂等:再跑一次不重复追加
     const res2 = codex.writePermissions(root, 'project');
     expect(res2.hooksAdded).toBe(false);
     const hooks2 = JSON.parse(fs.readFileSync(path.join(root, '.codex', 'hooks.json'), 'utf8'));
-    expect(hooks2.PreToolUse).toHaveLength(2);
+    expect(hooks2.hooks.PreToolUse).toHaveLength(2);
+  });
+
+  it('writePermissions:生成符合 codex 实测 schema 的三层结构(command 字符串,非 args 字段)', () => {
+    const res = codex.writePermissions(root, 'project');
+    expect(res.hooksAdded).toBe(true);
+    const hooks = JSON.parse(fs.readFileSync(path.join(root, '.codex', 'hooks.json'), 'utf8'));
+    // 顶层只能有 hooks/description(顶层 PreToolUse 会报 unknown field)
+    expect(Object.keys(hooks).filter((k) => k !== 'hooks' && k !== 'description')).toEqual([]);
+    const entry = hooks.hooks.PreToolUse[0].hooks[0];
+    expect(entry.type).toBe('command');
+    // args 字段会被 codex 静默忽略,必须拼成一条 command 字符串
+    expect(typeof entry.command).toBe('string');
+    expect(entry.command).toContain('permission-mode.mjs');
+    expect(entry.args).toBeUndefined();
   });
 
   it('installTemplates 铺 .agents/skills(官方扫描位)+ .codex/hook 脚本', () => {
@@ -206,10 +223,14 @@ describe('codex platform', () => {
     delete process.env.CODEX_PID;
   });
 
-  it('headlessRun:续接用 exec resume --last,首轮用 exec --sandbox workspace-write', () => {
+  it('headlessRun:续接用 exec resume --last,首轮用 exec --sandbox;两分支都带 --skip-git-repo-check(非 git 根必失败)与 --dangerously-bypass-hook-trust(无信任则 hook 静默不跑)', () => {
     expect(codex.headlessRun?.cmd).toBe('codex');
-    expect(codex.headlessRun?.args('P', true)).toEqual(['exec', 'resume', '--last', 'P']);
-    expect(codex.headlessRun?.args('P', false)).toEqual(['exec', '--sandbox', 'workspace-write', 'P']);
+    expect(codex.headlessRun?.args('P', true)).toEqual([
+      'exec', 'resume', '--last', 'P', '--skip-git-repo-check', '--dangerously-bypass-hook-trust',
+    ]);
+    expect(codex.headlessRun?.args('P', false)).toEqual([
+      'exec', '--skip-git-repo-check', '--sandbox', 'workspace-write', '--dangerously-bypass-hook-trust', 'P',
+    ]);
   });
 
   it('nonInteractiveCmd 不再使用废弃的 --full-auto', () => {

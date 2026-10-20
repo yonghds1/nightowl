@@ -10,6 +10,7 @@ import {
   shouldCheckpoint,
 } from '../state.js';
 import { taskCommitInHead } from './next.js';
+import { probeGit } from '../git.js';
 import { resolvePlatform } from '../platforms/index.js';
 import { getBaseDir } from '../paths.js';
 import { isoNow } from '../util.js';
@@ -60,7 +61,9 @@ export function createDoneCommand(): Command {
         // git 硬核验:主分支 HEAD 应存在含 `[#<id>]` 标记的 commit(证明确实实现并合并了,
         // 而非仅靠模型自报 review/verify 状态)。claude 默认只警告(不破坏既有无人值守流程),
         // 新平台默认阻断;--require-commit 让所有平台都阻断。--force 已整体旁路本块。
-        if (!taskCommitInHead(id)) {
+        // 非 git 环境(多仓父目录)没有统一主分支,commit 门禁整体跳过 —— 任务实现落在子仓,
+        // 用夜 verify 命令与 review 把关,不在这里误报 noCommit 阻塞任务。
+        if (probeGit().isRepo && !taskCommitInHead(id)) {
           const platform = resolvePlatform(undefined, path.dirname(getBaseDir()));
           const strict = opts.requireCommit === true || platform.id !== 'claude';
           if (strict) {

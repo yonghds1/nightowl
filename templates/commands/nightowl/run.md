@@ -24,10 +24,15 @@
 
 ## 协议输出
 
-`next` 输出的 `# RESUME_MERGE`/`# RESUME_COMMITTED`/`# RESUME in_progress`/`NO_TASK`、`WORKTREE_ROOT:`/`PRD_PATH:`/`DESCRIPTION:`/`ACCEPTANCE:`/`VERIFY:`、`sweep` 的 `SWEEP_CLEAN`/`SWEEP_REMOVED:`/`SWEEP_KEEP_UNMERGED:`/`SWEEP_KEEP_DIRTY:`、`push` 的 `PUSH_OK`/`PUSH_NOTHING`/`PUSH_SKIPPED_NO_REMOTE` 是调度循环解析的机器协议,保持原样。
+`next` 输出的 `# RESUME_MERGE`/`# RESUME_COMMITTED`/`# RESUME in_progress`/`NO_TASK`、`WORKTREE_ROOT:`/`PRD_PATH:`/`DESCRIPTION:`/`ACCEPTANCE:`/`VERIFY:`、`sweep` 的 `SWEEP_CLEAN`/`SWEEP_REMOVED:`/`SWEEP_KEEP_UNMERGED:`/`SWEEP_KEEP_DIRTY:`、`push` 的 `PUSH_OK`/`PUSH_NOTHING`/`PUSH_SKIPPED_NO_REMOTE`/`PUSH_SKIPPED_NO_GIT`、非 git 降级的 `WORKTREE_SKIPPED:`/`WORKTREE_MERGE_SKIPPED:`/`WORKTREE_CLEAN_SKIPPED:` 是调度循环解析的机器协议,保持原样。
 
 ## 原则
 
 - 每个任务过 5 道关:实现→审查→测试→提交→合并,worktree 即用即删。
 - 失败自动 retry,耗尽 block,不无限重试。
 - 一切进度落盘 `.nightowl/`,不依赖对话记忆。
+
+## 非 git 根目录(多仓父目录)降级
+
+项目根不是 git 仓库(任务实现在子仓库里完成)时,隔离类命令自动降级,流程不断:
+`worktree setup` 输出 `WORKTREE_SKIPPED:`、`worktree merge` 输出 `WORKTREE_MERGE_SKIPPED:`、`cleanup` 输出 `WORKTREE_CLEAN_SKIPPED:`、`push` 输出 `PUSH_SKIPPED_NO_GIT`。看到这些 token 直接跳到下一步:在主目录直接实现,verify/review/done 照走;子仓库的提交与推送由任务命令自带(`cd <子仓> && git ...`)。

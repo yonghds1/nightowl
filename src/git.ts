@@ -85,3 +85,11 @@ export function runShell(
     };
   }
 }
+
+/** 探测 cwd 是否在 git 仓库内(仓库根路径)。非 git 环境(多仓父目录/普通目录)isRepo=false。
+ *  每毫秒级开销,不缓存——用户可能中途 git init。 */
+export function probeGit(cwd = process.cwd()): { isRepo: boolean; root: string } {
+  const r = git(['rev-parse', '--show-toplevel'], { cwd });
+  if (r.code === 0 && r.stdout.trim()) return { isRepo: true, root: r.stdout.trim() };
+  return { isRepo: false, root: '' };
+}

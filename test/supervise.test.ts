@@ -14,6 +14,7 @@ import {
   superviseLoop,
   runHostRound,
   blockInProgress,
+  classifyRound,
   type SuperviseOptions,
 } from '../src/commands/supervise.js';
 import type { HeadlessRun } from '../src/platforms/types.js';
@@ -88,16 +89,45 @@ describe('runHostRound 环境故障', () => {
     expect(logs.join('\n')).toContain(`[spawn-error] ${result.error}`);
   });
 
-  it('业务进程非零退出不标为环境错误', async () => {
+  it('业务进程非零退出且输出无哨兵特征,不标为环境错误', async () => {
     const result = await runHostRound(failHost, 'prompt', 60_000, true, () => {});
 
     expect(result.code).toBe(3);
-    expect(result.infraError).toBeUndefined();
+    expect(result.infraError).toBe(false);
     expect(result.error).toBeUndefined();
   });
 });
 
 describe('纯函数', () => {
+  describe('classifyRound 基础设施失败哨兵', () => {
+    it('codex 非 git 拒启动 → infraError(曾误阻塞 M1 的实录场景)', () => {
+      const r = classifyRound(1, '[err] Not inside a trusted directory and --skip-git-repo-check was not specified.\n');
+      expect(r.infraError).toBe(true);
+      expect(r.error).toContain('Not inside a trusted directory');
+    });
+
+    it('余额耗尽(402) → infraError', () => {
+      expect(classifyRound(1, 'API Error: 402 insufficient balance (1008)').infraError).toBe(true);
+    });
+
+    it('hooks 配置坏 → infraError', () => {
+      expect(classifyRound(1, 'warning: failed to parse hooks config x: unknown field').infraError).toBe(true);
+    });
+
+    it('codex 容量不足 exit=0 → infraError(识别 exit 0 的坑)', () => {
+      const r = classifyRound(0, 'ERROR: Selected model is at capacity. Please try a different model.');
+      expect(r.infraError).toBe(true);
+    });
+
+    it('普通业务失败(非零退出,无哨兵特征) → 非 infra', () => {
+      expect(classifyRound(3, 'some business error').infraError).toBe(false);
+    });
+
+    it('正常成功 → 非 infra', () => {
+      expect(classifyRound(0, 'ok done').infraError).toBe(false);
+    });
+  });
+
   it('progressSig = completed:blocked 数量', () => {
     const s = {
       completed: [{ id: 'T1', actual_min: 1, finished_at: 'x' }],

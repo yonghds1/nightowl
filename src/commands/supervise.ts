@@ -61,6 +61,38 @@ export interface HostRoundResult {
   error?: string;
 }
 
+/**
+ * 基础设施失败哨兵:命中即视为"环境/上游故障",不计入业务任务重试、不阻塞任务。
+ * 全部来自真实故障实录:
+ *  - codex 非 git 目录启动被拒(supervise 首轮必失败,曾误阻塞 M1)
+ *  - hooks 配置坏(codex 启动会打 warning;若用户手改坏则轮轮失败)
+ *  - claude 代理余额耗尽(402 insufficient balance,实测)
+ */
+const INFRA_ERROR_PATTERNS: RegExp[] = [
+  /Not inside a trusted directory/,
+  /failed to (parse|read) hooks config/,
+  /insufficient balance/,
+];
+
+/**
+ * 归类一轮宿主会话的结果:exit 非零命中哨兵,或 exit=0 但输出出现上游容量拒绝
+ * (codex 实测 at capacity 时 exit code 是 0!不识别会让无人值守空转到 maxIdle),
+ * 都归为 infraError。
+ */
+export function classifyRound(code: number, output: string): { infraError: boolean; error?: string } {
+  if (code === 0) {
+    if (/Selected model is at capacity|at capacity\. Please try a different model/.test(output)) {
+      return { infraError: true, error: 'model at capacity (codex exited 0)' };
+    }
+    return { infraError: false };
+  }
+  for (const re of INFRA_ERROR_PATTERNS) {
+    const m = re.exec(output);
+    if (m) return { infraError: true, error: m[0] };
+  }
+  return { infraError: false };
+}
+
 /** spawn 宿主 headless 会话跑一轮,超时 kill。onSpawn 暴露子进程(供信号处理 kill)。 */
 export function runHostRound(
   hr: HeadlessRun,
@@ -75,8 +107,15 @@ export function runHostRound(
     const args = hr.args(prompt, useContinue, timeoutMs);
     const child = spawn(hr.cmd, args, { cwd: process.cwd(), stdio: ['ignore', 'pipe', 'pipe'] });
     if (onSpawn) onSpawn(child);
-    child.stdout.on('data', (d: Buffer) => logLine(`[out] ${d.toString()}`));
-    child.stderr.on('data', (d: Buffer) => logLine(`[err] ${d.toString()}`));
+    const outputParts: string[] = [];
+    child.stdout.on('data', (d: Buffer) => {
+      outputParts.push(d.toString());
+      logLine(`[out] ${d.toString()}`);
+    });
+    child.stderr.on('data', (d: Buffer) => {
+      outputParts.push(d.toString());
+      logLine(`[err] ${d.toString()}`);
+    });
     const timer = setTimeout(() => {
       logLine(`[timeout] ${timeoutMs}ms 超时,强制结束本轮`);
       child.kill('SIGKILL');
@@ -89,7 +128,8 @@ export function runHostRound(
     });
     child.on('exit', (code) => {
       clearTimeout(timer);
-      resolve({ code: code ?? 1, elapsedMs: elapsed() });
+      const verdict = classifyRound(code ?? 1, outputParts.join(''));
+      resolve({ code: code ?? 1, elapsedMs: elapsed(), ...verdict });
     });
   });
 }
