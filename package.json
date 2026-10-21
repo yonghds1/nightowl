@@ -24,7 +24,8 @@
     "test": "npm run build && vitest run",
     "test:watch": "vitest",
     "dev": "tsx src/cli.ts",
-    "prepublishOnly": "npm run build && npm test"
+    "prepublishOnly": "npm run build && npm test",
+    "check": "npm run typecheck && npm test"
   },
   "keywords": [
     "claude",

@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        # engines 要求 >=20;20 为最低支持,24 为当前开发版本
+        node: [20, 22, 24]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      # package-lock.json 已入库:npm ci 可复现安装
+      - run: npm ci
+
+      - run: npm run check
+
+      # 发布物自检:files 字段遗漏会让 npm 包里缺模板/技能
+      - name: package contents smoke test
+        if: matrix.node == 22
+        run: npm pack --dry-run
