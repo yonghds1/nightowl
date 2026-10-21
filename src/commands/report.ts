@@ -14,6 +14,7 @@ import {
 } from '../state.js';
 import { fmtDateTime, isoNow } from '../util.js';
 import { git } from '../git.js';
+import { noteFreshnessFor } from '../report-freshness.js';
 import { t as tr } from '../i18n.js';
 
 export interface ExecutiveSummary {
@@ -178,7 +179,10 @@ export function createReportCommand(): Command {
         for (const b of blocked) lines.push(`- **${b.id}**: ${b.reason ?? ''}`);
         lines.push('');
       }
-      // 审查过程:每个任务的最终裁决 + 历史轮次
+      // 审查过程:每个任务的最终裁决 + 历史轮次。
+      // note 是审查当时的原文,存进任务池后不再重算,直接照搬会出现"静态陈述与当前矛盾"
+      // (实测:M5 备注写"M6 仍需完成",而 M6 后来已完成)。这里不改写原文(那等于伪造
+      // 审查记录),而是追加时效后缀,让读者同时看到"当时怎么想"和"后来实际怎样"。
       const reviewed = pool.pool.filter((t) => t.review);
       if (reviewed.length) {
         lines.push(tr('report.sectionReview'), '');
@@ -186,22 +190,25 @@ export function createReportCommand(): Command {
           const final = t.review!;
           const v =
             final.result === 'PASS' ? '✅' : final.result === 'PASS_WITH_NITS' ? '⚠️' : '❌';
+          const fresh = noteFreshnessFor(pool, state, final.note);
+          const noteText = `${final.note || tr('report.noNote')}${fresh.suffix ?? ''}`;
           lines.push(
             tr('report.reviewLine', {
               id: t.id,
               mark: v,
               result: final.result,
-              note: final.note || tr('report.noNote'),
+              note: noteText,
             }),
           );
           for (const [i, h] of (t.review_history ?? []).entries()) {
             const hv = h.result === 'PASS' ? '✅' : h.result === 'PASS_WITH_NITS' ? '⚠️' : '❌';
+            const hFresh = noteFreshnessFor(pool, state, h.note);
             lines.push(
               tr('report.roundLine', {
                 n: i + 1,
                 mark: hv,
                 result: h.result,
-                note: h.note || tr('report.noNote'),
+                note: `${h.note || tr('report.noNote')}${hFresh.suffix ?? ''}`,
               }),
             );
           }
