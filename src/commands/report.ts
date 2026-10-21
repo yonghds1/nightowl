@@ -77,20 +77,22 @@ export function buildExecutiveSummary(pool: Pool, state: AppState): ExecutiveSum
   }
 
   let verdict: 'READY' | 'CONDITIONAL' | 'BLOCKED' = 'READY';
-  let verdictReason = '全部预期任务已验证完成并通过审查';
+  let verdictReason = tr('report.reasonReady');
 
   if (blocked > 0 || p0Done < p0Total) {
     verdict = 'BLOCKED';
-    verdictReason = blocked > 0
-      ? `存在 ${blocked} 个阻塞任务待人工介入`
-      : `核心 P0 任务尚未全部完成 (${p0Done}/${p0Total})`;
+    verdictReason =
+      blocked > 0
+        ? tr('report.reasonBlocked', { n: blocked })
+        : tr('report.reasonP0', { done: p0Done, total: p0Total });
   } else if (reviewFailRounds > 0 || nitsCount > 0 || (deviationRatio !== null && deviationRatio > 0.3)) {
     verdict = 'CONDITIONAL';
-    verdictReason = reviewFailRounds > 0
-      ? `存在 ${reviewFailRounds} 轮打回重试记录，需关注返工代码`
-      : nitsCount > 0
-      ? `存在 ${nitsCount} 项微调建议 (NITS)`
-      : `工时超出预估 ${Math.round((deviationRatio ?? 0) * 100)}%`;
+    verdictReason =
+      reviewFailRounds > 0
+        ? tr('report.reasonReview', { n: reviewFailRounds })
+        : nitsCount > 0
+        ? tr('report.reasonNits', { n: nitsCount })
+        : tr('report.reasonDeviation', { pct: Math.round((deviationRatio ?? 0) * 100) });
   }
 
   return {
@@ -116,7 +118,7 @@ export function groupGitByTask(gitlog: string): Map<string, string[]> {
     const trimmed = line.trim();
     if (!trimmed) continue;
     const match = trimmed.match(/\[#?([A-Za-z0-9_-]+)\]/);
-    const key = match ? `[#${match[1]}]` : '其他变更';
+    const key = match ? `[#${match[1]}]` : tr('report.otherChanges');
     if (!map.has(key)) map.set(key, []);
     map.get(key)!.push(trimmed);
   }
@@ -143,22 +145,44 @@ export function createReportCommand(): Command {
       lines.push(tr('report.generatedAt', { time: fmtDateTime() }), '');
 
       // 🚦 10 秒 Executive Summary 看板
-      const verdictIcon =
-        summary.verdict === 'READY' ? '🟢 【可发版】' : summary.verdict === 'CONDITIONAL' ? '🟡 【条件发版】' : '🔴 【不可发版】';
-      lines.push('## 🚦 决策看板 (Executive Summary)', '');
-      lines.push(`> **发版判定**: ${verdictIcon} — *${summary.verdictReason}*  `);
+      const verdictIcon = tr(
+        summary.verdict === 'READY'
+          ? 'report.verdictReady'
+          : summary.verdict === 'CONDITIONAL'
+          ? 'report.verdictConditional'
+          : 'report.verdictBlocked',
+      );
+      lines.push(tr('report.execSummary'), '');
+      lines.push(tr('report.releaseLine', { verdict: verdictIcon, reason: summary.verdictReason }));
       lines.push(
-        `> **任务进度**: 已完成 ${summary.done}/${summary.total} (P0: ${summary.p0Done}/${summary.p0Total}) | 阻塞: ${summary.blocked} | 待办: ${summary.pending}  `,
+        tr('report.progressLine', {
+          done: summary.done,
+          total: summary.total,
+          p0Done: summary.p0Done,
+          p0Total: summary.p0Total,
+          blocked: summary.blocked,
+          pending: summary.pending,
+        }),
       );
       if (summary.deviationRatio !== null) {
         const sign = summary.deviationRatio >= 0 ? '+' : '';
         const pct = `${sign}${Math.round(summary.deviationRatio * 100)}%`;
         lines.push(
-          `> **工时偏差**: 预估 ${summary.totalEst}m / 实际 ${summary.totalActual}m (${pct}) | 审查打回: ${summary.reviewFailRounds} 次 | 建议(Nits): ${summary.nitsCount} 个`,
+          tr('report.deviationLine', {
+            est: summary.totalEst,
+            actual: summary.totalActual,
+            pct,
+            fails: summary.reviewFailRounds,
+            nits: summary.nitsCount,
+          }),
         );
       } else {
         lines.push(
-          `> **工时预估**: 预估总工时 ${summary.totalEst}m | 审查打回: ${summary.reviewFailRounds} 次 | 建议(Nits): ${summary.nitsCount} 个`,
+          tr('report.estimateLine', {
+            est: summary.totalEst,
+            fails: summary.reviewFailRounds,
+            nits: summary.nitsCount,
+          }),
         );
       }
       lines.push('');

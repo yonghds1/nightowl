@@ -68,4 +68,33 @@ f5d96c1 chore: release 0.4.2
     expect(grouped.has('其他变更')).toBe(true);
     expect(grouped.get('其他变更')!.length).toBe(1);
   });
+
+  it('英文模式下判定理由与未分组标题不残留中文', () => {
+    const prev = process.env.NIGHTOWL_LANG;
+    process.env.NIGHTOWL_LANG = 'en';
+    try {
+      const pool: Pool = {
+        schedule: { retry_budget: 1 },
+        pool: [
+          { id: 'T1', title: 'Task', priority: 'P0', est_min: 10, depends_on: [], status: 'done' },
+        ],
+      };
+      const state: AppState = {
+        completed: [{ id: 'T1', actual_min: 10, finished_at: '' }],
+        blocked: [],
+        in_progress: null,
+      };
+
+      const summary = buildExecutiveSummary(pool, state);
+      expect(summary.verdict).toBe('READY');
+      expect(summary.verdictReason).toBe('All expected tasks verified and reviewed');
+      expect(summary.verdictReason).not.toMatch(/[\u4e00-\u9fff]/);
+
+      const grouped = groupGitByTask('abc1234 chore: release');
+      expect([...grouped.keys()]).toEqual(['other changes']);
+    } finally {
+      if (prev === undefined) delete process.env.NIGHTOWL_LANG;
+      else process.env.NIGHTOWL_LANG = prev;
+    }
+  });
 });
