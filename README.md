@@ -142,7 +142,7 @@ nightowl workflow list                             # 列出阶段、agent、任�
 - `nightowl verify <id>` 跑验收命令，通过记录 `verify_passed`
 - `nightowl done <id> <actual_min>` 标记完成，**审查关口 + 测试关口 + git 核验**（校验主分支确有含 `[#<id>]` 标记的 commit；Claude 仅警告、其余平台默认阻断，`--require-commit` 可强制所有平台，`--force` 跳过全部）
 - `nightowl block <id> <reason>` 阻塞（立即保存 checkpoint）
-- `nightowl sweep` 清查残留 worktree（中断续跑先回收半成品）
+- `nightowl sweep` 清查残留 worktree（默认按 main/master → origin/HEAD → 当前分支确定集成分支，可用 `--base <branch>` 指定；`--clean` 才真正删除）
 - `nightowl preflight` 开工前 git 环境体检：缺失身份 / detached HEAD / 未完成的 merge 直接 FAIL，脏工作区、浅克隆、幽灵 worktree、无 remote 给 WARN 与修复命令（`--strict` 把 WARN 也当失败）
 - `nightowl push` 推送未推送的 commit（`PUSH_OK` / `PUSH_NOTHING` / `PUSH_SKIPPED_NO_REMOTE` / `PUSH_DETACHED` / `PUSH_REJECTED`）
 

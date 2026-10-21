@@ -142,7 +142,7 @@ Slash commands are optional: saying "build X" / "start" / "report" also triggers
 - `nightowl verify <id>` run the acceptance command; records `verify_passed` on success
 - `nightowl done <id> <actual_min>` mark done, gated by **review gate + test gate + git check** (verifies the main branch has a commit tagged `[#<id>]`; Claude warns only, other platforms block by default — `--require-commit` forces it everywhere, `--force` bypasses all gates)
 - `nightowl block <id> <reason>` block (saves a checkpoint immediately)
-- `nightowl sweep` clean up leftover worktrees (reclaims half-done work after an interrupted resume)
+- `nightowl sweep` clean up leftover worktrees (integration branch defaults to main/master → origin/HEAD → current; override with `--base <branch>`; only `--clean` removes)
 - `nightowl preflight` git health check before starting: missing identity / detached HEAD / unfinished merge are FAIL; dirty tree, shallow clone, stale worktrees and missing remote are WARN with fix commands (`--strict` promotes WARN to FAIL)
 - `nightowl push` push unpushed commits (`PUSH_OK` / `PUSH_NOTHING` / `PUSH_SKIPPED_NO_REMOTE` / `PUSH_DETACHED` / `PUSH_REJECTED`)
 

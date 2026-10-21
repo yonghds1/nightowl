@@ -1,10 +1,11 @@
 import { Command } from 'commander';
 import fs, { existsSync, mkdirSync, rmSync, readdirSync } from 'node:fs';
 import path from 'node:path';
-import { git, gitCurrentBranch, probeGit } from '../git.js';
+import { git, gitCurrentBranch, probeGit, runShell } from '../git.js';
 import { getBaseDir } from '../paths.js';
 import { loadPool } from '../state.js';
 import { assertTaskId } from '../task-id.js';
+import { extractDiagnostic } from '../diagnostic.js';
 
 export function getWorktreePath(id: string): string {
   return path.join(getBaseDir(), 'worktrees', id);
@@ -135,7 +136,8 @@ export function createWorktreeCommand(): Command {
     .command('merge')
     .argument('<id>')
     .option('--no-strict', '跳过 commit 标记检查')
-    .action((id: string, opts: { strict: boolean }) => {
+    .option('--no-recheck', '跳过合并后复验(默认在合并后的主分支重跑 verify)')
+    .action((id: string, opts: { strict: boolean; recheck: boolean }) => {
       requireTaskId(id);
       // 非 git 环境无分支可合并:跳过即"成功"语义,让调度流程继续走 verify / done
       const env = probeGit();
@@ -201,6 +203,7 @@ export function createWorktreeCommand(): Command {
           process.exit(1);
         }
       }
+      const beforeHead = git(['rev-parse', 'HEAD']).stdout.trim();
       const r = git([
         'merge',
         '--no-ff',
@@ -227,6 +230,39 @@ export function createWorktreeCommand(): Command {
         console.error(`WORKTREE_MERGE_FAIL: ${r.stderr || r.stdout}`);
         process.exit(1);
       }
+
+      // 合并后复验:隔离 worktree 里每个任务都绿,不代表合到一起还绿
+      // (语义冲突、接口错位、双向改动)。失败即回滚主分支,避免"坏主分支也算 done"。
+      const verifyCmds = task?.verify ?? [];
+      if (opts.recheck !== false && verifyCmds.length) {
+        for (const cmd of verifyCmds) {
+          const rr = runShell(cmd);
+          if (rr.code === 0) continue;
+
+          const diagnostic = extractDiagnostic(rr.stdout, rr.stderr);
+          const reset = beforeHead
+            ? git(['reset', '--hard', beforeHead])
+            : { code: 1, stderr: 'no HEAD captured before merge' };
+          console.error(
+            `WORKTREE_MERGE_RECHECK_FAIL: 合并后复验失败(退出码 ${rr.code}): ${cmd}`,
+          );
+          if (diagnostic) console.error(diagnostic);
+          if (reset.code === 0) {
+            console.error(
+              `已 git reset --hard 回滚到合并前(${beforeHead.slice(0, 7)}),主分支未被污染。`,
+            );
+          } else {
+            console.error(
+              `⚠️ 自动回滚失败,主分支仍是合并后状态。请手工执行: git reset --hard ${beforeHead.slice(0, 7)}`,
+            );
+          }
+          console.error(
+            `   ↪ 下一步: cd ${targetDir} 修复后重新 nightowl verify ${id} && nightowl worktree merge ${id}`,
+          );
+          process.exit(1);
+        }
+      }
+
       console.log(`WORKTREE_MERGED: ${branch}`);
     });
 

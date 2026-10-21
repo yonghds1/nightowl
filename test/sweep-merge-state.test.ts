@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { setBaseDir } from '../src/paths.js';
-import { createSweepCommand, mergeState } from '../src/commands/sweep.js';
+import { createSweepCommand, mergeState, resolveBaseBranch } from '../src/commands/sweep.js';
 import { createWorktreeCommand } from '../src/commands/worktree.js';
 import { runCommand } from './helpers.js';
 
@@ -51,7 +51,7 @@ describe('sweep 的“已合入”判定', () => {
     git(['checkout', '-q', baseBranch]);
     git(['merge', '-q', '--no-ff', '-m', 'merge feature', 'feature']);
 
-    const s = mergeState('feature');
+    const s = mergeState('feature', baseBranch);
     expect(s.merged).toBe(true);
     expect(s.unmerged).toEqual([]);
   });
@@ -61,7 +61,7 @@ describe('sweep 的“已合入”判定', () => {
     commit('feature work', 'f.txt', '1');
     git(['checkout', '-q', baseBranch]);
 
-    const s = mergeState('feature');
+    const s = mergeState('feature', baseBranch);
     expect(s.merged).toBe(false);
     expect(s.unmerged).toHaveLength(1);
   });
@@ -75,7 +75,22 @@ describe('sweep 的“已合入”判定', () => {
 
     // 祖先判定为 false,但 patch-id 等价
     expect(git(['merge-base', '--is-ancestor', 'feature', 'HEAD']).status).not.toBe(0);
-    expect(mergeState('feature').merged).toBe(true);
+    expect(mergeState('feature', baseBranch).merged).toBe(true);
+  });
+});
+
+describe('sweep 的集成分支解析', () => {
+  it('显式 --base 优先', () => {
+    expect(resolveBaseBranch('develop')).toBe('develop');
+  });
+
+  it('默认解析到本地集成分支,而不是当前 HEAD', () => {
+    // 当前停在旧分支,主分支已经前进
+    git(['branch', 'old']);
+    commit('main moves on', 'm.txt', '1');
+    git(['checkout', '-q', 'old']);
+
+    expect(resolveBaseBranch()).toBe(baseBranch);
   });
 });
 
@@ -90,21 +105,36 @@ describe('sweep --clean 的现场保护', () => {
     expect(fs.existsSync(wt)).toBe(true);
   });
 
-  it('squash 合入后清理:worktree 删除,分支删不掉要告警(不再静默堆积)', () => {
+  it('不在集成分支上跑 sweep,也不会把已合入的任务误判为未合入', () => {
     runCommand(createWorktreeCommand(), ['setup', 'T2']);
     const wt = path.join(root, '.nightowl', 'worktrees', 'T2');
     commit('[#T2] implement', 'impl.txt', 'work', wt);
+    runCommand(createWorktreeCommand(), ['merge', 'T2']);
 
-    // 用 squash 方式合入主分支(模拟 PR squash merge)
-    git(['merge', '-q', '--squash', 'nightowl/T2']);
-    git(['commit', '-q', '-m', 'squash [#T2]']);
+    // 切到不含该合并的旧分支再清理
+    git(['branch', 'old']);
+    git(['checkout', '-q', 'old']);
+
+    const r = runCommand(createSweepCommand(), ['--clean']);
+    expect(r.output).toContain(`SWEEP_BASE: ${baseBranch}`);
+    expect(r.stdout).toContain('SWEEP_REMOVED');
+    expect(r.stdout).not.toContain('SWEEP_KEEP_UNMERGED');
+    expect(fs.existsSync(wt)).toBe(false);
+    // 已确认合入,分支应被删除(-d 失败后 -D 兜底)
+    expect(git(['branch', '--list', 'nightowl/T2']).stdout).toBe('');
+  });
+
+  it('squash 合入后清理:worktree 与分支都回收', () => {
+    runCommand(createWorktreeCommand(), ['setup', 'T3']);
+    const wt = path.join(root, '.nightowl', 'worktrees', 'T3');
+    commit('[#T3] implement', 'impl3.txt', 'work', wt);
+
+    git(['merge', '-q', '--squash', 'nightowl/T3']);
+    git(['commit', '-q', '-m', 'squash [#T3]']);
 
     const r = runCommand(createSweepCommand(), ['--clean']);
     expect(r.stdout).toContain('SWEEP_REMOVED');
     expect(fs.existsSync(wt)).toBe(false);
-    // 分支不是祖先,git branch -d 会拒绝;必须把失败暴露出来
-    expect(git(['branch', '--list', 'nightowl/T2']).stdout).toContain('nightowl/T2');
-    expect(r.output).toContain('nightowl/T2');
-    expect(r.output).toMatch(/未删除|kept/i);
+    expect(git(['branch', '--list', 'nightowl/T3']).stdout).toBe('');
   });
 });

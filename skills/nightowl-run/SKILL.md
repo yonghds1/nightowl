@@ -46,7 +46,7 @@ nightowl preflight
    审查代码质量与规范，运行 `nightowl review <id> --result PASS`。
 6. **安全合入主分支**：
    在主分支执行 `nightowl worktree merge <id>`。
-   （底层自动比对代码版本与验证记录，若代码发生变动必须重新 verify）。
+   （底层自动比对代码版本与验证记录；合并后会在主分支重跑 verify，失败自动回滚到合并前，`--no-recheck` 可跳过）
 7. **现场安全清理**：
    运行 `nightowl worktree cleanup <id>`。
    （底层调用 git worktree remove 进行安全移除，若有未提交改动默认保留现场，用完即删）。
