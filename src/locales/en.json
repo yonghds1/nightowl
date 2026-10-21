@@ -80,7 +80,9 @@
     "noCommitHint": "   Confirm the implementer committed with `[#{{id}}]` in the message and merged to the main branch; or use --force to skip",
     "noCommitWarn": "⚠️  {{id}}: no commit with [#{{id}}] on the main branch (ensure implemented + merged; Claude platform warns only, does not block)",
     "completedLog": "✅ {{id}} done, took {{actual}} min",
-    "ok": "✅ {{id}} marked done"
+    "ok": "✅ {{id}} marked done",
+    "prdBackfilled": "📄 PRD backfilled by done: checked {{n}} acceptance command(s) with execution receipts",
+    "prdBackfillSkipped": "📄 PRD backfill skipped ({{reason}}); task state unaffected"
   },
   "block": {
     "desc": "Block task",

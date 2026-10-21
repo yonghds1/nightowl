@@ -11,6 +11,7 @@ import {
 } from '../state.js';
 import { taskCommitInHead } from './next.js';
 import { probeGit } from '../git.js';
+import { backfillPrd } from '../prd.js';
 import { resolvePlatform } from '../platforms/index.js';
 import { getBaseDir } from '../paths.js';
 import { isoNow } from '../util.js';
@@ -91,6 +92,17 @@ export function createDoneCommand(): Command {
         const completed = state.completed.length;
         saveCheckpoint(pool, state, { total, completed });
         log(t('checkpoint.savedLog', { completed, total }));
+      }
+
+      // PRD 回填放在状态落盘之后:即使回填失败,任务状态也已持久化,不会出现
+      // "任务没完成但文档已写完成"的错位。回填本身绝不让 done 失败。
+      const finishedAt = state.completed[state.completed.length - 1]?.finished_at ?? isoNow();
+      const commit = probeGit().isRepo ? taskCommitInHead(id) : null;
+      const bf = backfillPrd(task.prd_path, { ...task, status: 'done' }, actualMin, finishedAt, commit);
+      if (bf.changed) {
+        log(t('done.prdBackfilled', { id, n: bf.checkedCommands }));
+      } else if (bf.skipped && bf.skipped !== 'no-prd') {
+        log(t('done.prdBackfillSkipped', { id, reason: bf.skipped }));
       }
 
       log(t('done.completedLog', { id, actual: actualMin }));

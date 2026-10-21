@@ -80,7 +80,9 @@
     "noCommitHint": "   确认实现子代理已提交且 commit message 含 `[#{{id}}]`、并合回主分支;或用 --force 跳过",
     "noCommitWarn": "⚠️  {{id}} 主分支未找到含 [#{{id}}] 的 commit(请确认已实现+合并;Claude 平台仅警告不阻断)",
     "completedLog": "✅ {{id}} 完成,实际用时 {{actual}} 分",
-    "ok": "✅ {{id}} 已标记完成"
+    "ok": "✅ {{id}} 已标记完成",
+    "prdBackfilled": "📄 PRD 已回填(done 自动):勾选 {{n}} 条有执行回执的验收命令",
+    "prdBackfillSkipped": "📄 PRD 回填跳过({{reason}}),不影响任务状态"
   },
   "block": {
     "desc": "阻塞",
