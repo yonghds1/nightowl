@@ -142,7 +142,8 @@ nightowl workflow list                             # 列出阶段、agent、任�
 - `nightowl done <id> <actual_min>` 标记完成，**审查关口 + 测试关口 + git 核验**（校验主分支确有含 `[#<id>]` 标记的 commit；Claude 仅警告、其余平台默认阻断，`--require-commit` 可强制所有平台，`--force` 跳过全部）
 - `nightowl block <id> <reason>` 阻塞（立即保存 checkpoint）
 - `nightowl sweep` 清查残留 worktree（中断续跑先回收半成品）
-- `nightowl push` 推送未推送的 commit（`PUSH_OK` / `PUSH_NOTHING` / `PUSH_SKIPPED_NO_REMOTE`）
+- `nightowl preflight` 开工前 git 环境体检：缺失身份 / detached HEAD / 未完成的 merge 直接 FAIL，脏工作区、浅克隆、幽灵 worktree、无 remote 给 WARN 与修复命令（`--strict` 把 WARN 也当失败）
+- `nightowl push` 推送未推送的 commit（`PUSH_OK` / `PUSH_NOTHING` / `PUSH_SKIPPED_NO_REMOTE` / `PUSH_DETACHED` / `PUSH_REJECTED`）
 
 **无人值守**：run 阶段可用 `nightowl supervise` 作为驱动引擎替代手动循环——按平台反复拉起宿主 headless 会话（Claude `claude -p --continue`、Codex `codex exec resume --last`、OpenCode `opencode run --auto --continue`、Antigravity `agy -p --dangerously-skip-permissions --continue`）延续主会话推进任务池，**任务池全部完成自动退出**（报告未落盘会自动拉起收尾轮兜底，退出即 run 完整结束）；中断后再启动即从断点续（续接 + resume 幂等，不重复实现已完成任务）。常用 `--interval-sec` / `--timeout-min` / `--max-idle`，调试用 `--once`。
 
@@ -166,6 +167,7 @@ nightowl workflow list                             # 列出阶段、agent、任�
 | `analyze` | 项目文档分析（产出项目上下文） |
 | `review` | 记录审查结果 |
 | `sweep` | 清查残留 worktree |
+| `preflight` | 开工前 git 环境体检（身份/分支/冲突/清理） |
 | `push` | 推送未推送 commit |
 | `report` | 生成报告 |
 | `resume` | 崩溃续跑 |

@@ -142,7 +142,8 @@ Slash commands are optional: saying "build X" / "start" / "report" also triggers
 - `nightowl done <id> <actual_min>` mark done, gated by **review gate + test gate + git check** (verifies the main branch has a commit tagged `[#<id>]`; Claude warns only, other platforms block by default — `--require-commit` forces it everywhere, `--force` bypasses all gates)
 - `nightowl block <id> <reason>` block (saves a checkpoint immediately)
 - `nightowl sweep` clean up leftover worktrees (reclaims half-done work after an interrupted resume)
-- `nightowl push` push unpushed commits (`PUSH_OK` / `PUSH_NOTHING` / `PUSH_SKIPPED_NO_REMOTE`)
+- `nightowl preflight` git health check before starting: missing identity / detached HEAD / unfinished merge are FAIL; dirty tree, shallow clone, stale worktrees and missing remote are WARN with fix commands (`--strict` promotes WARN to FAIL)
+- `nightowl push` push unpushed commits (`PUSH_OK` / `PUSH_NOTHING` / `PUSH_SKIPPED_NO_REMOTE` / `PUSH_DETACHED` / `PUSH_REJECTED`)
 
 **Unattended**: use `nightowl supervise` in the run phase as the driver engine instead of a manual loop — per platform it repeatedly launches the host's headless session (Claude `claude -p --continue`, Codex `codex exec resume --last`, OpenCode `opencode run --auto --continue`, Antigravity `agy -p --dangerously-skip-permissions --continue`) to extend the main session and advance the pool, **exiting automatically when the pool completes** (if the report was not written, it launches a finalize round to guarantee it — exiting means the run fully finished); restarting after an interruption resumes from the checkpoint (session continuation + idempotent resume, no re-implementation of finished tasks). Common flags: `--interval-sec` / `--timeout-min` / `--max-idle`; `--once` for debugging.
 
@@ -166,6 +167,7 @@ Slash commands are optional: saying "build X" / "start" / "report" also triggers
 | `analyze` | Analyze project docs (produce project context) |
 | `review` | Record review result |
 | `sweep` | Clean leftover worktrees |
+| `preflight` | Git health check before a run (identity/branch/conflicts/cleanup) |
 | `push` | Push unpushed commits |
 | `report` | Generate report |
 | `resume` | Resume after crash |

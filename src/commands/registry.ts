@@ -13,6 +13,7 @@ import { createPushCommand } from './push.js';
 import { createReportCommand } from './report.js';
 import { createCheckpointCommand } from './checkpoint.js';
 import { createSelfcheckCommand } from './selfcheck.js';
+import { createPreflightCommand } from './preflight.js';
 import { createSuperviseCommand } from './supervise.js';
 import { createWorktreeCommand } from './worktree.js';
 import { createWorkflowCommand } from './workflow.js';
@@ -35,6 +36,7 @@ export const COMMAND_FACTORIES: CommandFactory[] = [
   createReportCommand,
   createCheckpointCommand,
   createSelfcheckCommand,
+  createPreflightCommand,
   createSuperviseCommand,
   createWorktreeCommand,
   createWorkflowCommand,

@@ -55,6 +55,22 @@ function branchExists(branch: string): boolean {
   return git(['show-ref', '--verify', '--quiet', `refs/heads/${branch}`]).code === 0;
 }
 
+/** 当前分支名;detached HEAD 返回 null(此时合并会把提交写到游离 HEAD 上)。 */
+function currentBranchName(): string | null {
+  const r = git(['symbolic-ref', '--quiet', '--short', 'HEAD']);
+  return r.code === 0 && r.stdout.trim() ? r.stdout.trim() : null;
+}
+
+/** 仓库是否停在未完成的 merge(冲突未解决)。 */
+function mergeInProgress(): boolean {
+  return git(['rev-parse', '--quiet', '--verify', 'MERGE_HEAD']).code === 0;
+}
+
+/** 未解决的冲突文件列表。 */
+function conflictedFiles(): string[] {
+  return git(['diff', '--name-only', '--diff-filter=U']).stdout.split('\n').filter(Boolean);
+}
+
 export function createWorktreeCommand(): Command {
   const cmd = new Command('worktree').description(
     '管理任务隔离工作树(setup / merge / cleanup / list)',
@@ -131,8 +147,38 @@ export function createWorktreeCommand(): Command {
         return;
       }
       const branch = getWorktreeBranch(id);
+      const targetDir = getWorktreePath(id);
       if (!branchExists(branch)) {
         console.error(`WORKTREE_MERGE_FAIL: branch not found: ${branch}`);
+        process.exit(1);
+      }
+
+      // 合并前置条件:合进一个不干净/游离的 HEAD,失败后会把仓库留在半合并状态。
+      const targetBranch = currentBranchName();
+      if (!targetBranch) {
+        console.error(
+          `WORKTREE_DETACHED: 当前处于 detached HEAD,合并会生成游离提交(切换分支后丢失)。\n` +
+            `   ↪ 下一步: git switch <集成分支> && nightowl worktree merge ${id}`,
+        );
+        process.exit(1);
+      }
+      if (mergeInProgress()) {
+        console.error(
+          `WORKTREE_MERGE_IN_PROGRESS: 仓库存在未完成的 merge(${targetBranch})。\n` +
+            `   ↪ 下一步: git merge --abort(或手工解决冲突后 git commit)\n` +
+            `   ↪ 然后重试: nightowl worktree merge ${id}`,
+        );
+        process.exit(1);
+      }
+      // 只拦"已跟踪文件的未提交改动":merge 会把它们混入合并结果。
+      // 未跟踪文件(如 init 铺入的 .claude/skills)不参与合并,git 自己也会在会被覆盖时拒绝,
+      // 一刀切拦下会让 nightowl init 之后的所有合并都无法进行。
+      const dirty = git(['status', '--porcelain', '--untracked-files=no']).stdout.trim();
+      if (dirty) {
+        console.error(
+          `WORKTREE_MERGE_DIRTY: 当前工作区(${targetBranch})有未提交的已跟踪改动,拒绝合并以免混入或覆盖。\n` +
+            `   ↪ 下一步: git status 后 git commit 或 git stash,再重试 nightowl worktree merge ${id}`,
+        );
         process.exit(1);
       }
 
@@ -166,6 +212,21 @@ export function createWorktreeCommand(): Command {
         branch,
       ]);
       if (r.code !== 0) {
+        // 冲突:git 会把仓库留在 MERGING 状态。无人值守场景没人来 abort,
+        // 自动回滚到合并前,任务由上层按失败降级 blocked。
+        if (mergeInProgress()) {
+          const files = conflictedFiles();
+          git(['merge', '--abort']);
+          console.error(
+            `WORKTREE_MERGE_CONFLICT: 合并 ${branch} 到 ${targetBranch} 产生冲突,已自动 git merge --abort 回滚。`,
+          );
+          if (files.length) console.error(`冲突文件:\n${files.map((f) => `  - ${f}`).join('\n')}`);
+          console.error(
+            `   ↪ 下一步: cd ${targetDir} && git merge ${targetBranch} 解决冲突并 commit,然后重试\n` +
+              `   ↪ 或放弃本任务: nightowl block ${id} "merge conflict"`,
+          );
+          process.exit(1);
+        }
         console.error(`WORKTREE_MERGE_FAIL: ${r.stderr || r.stdout}`);
         process.exit(1);
       }

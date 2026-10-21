@@ -51,7 +51,16 @@ const PROTOCOL = {
   verify: ['ALL_PASS', 'VERIFY_NONE', 'ERROR:'],
   // INVALID_TASK_ID 由 task-id.ts 抛错、由各命令 catch 后打印,登记在 taskId 域
 
-  push: ['PUSH_OK', 'PUSH_NOTHING', 'PUSH_SKIPPED_NO_REMOTE', 'PUSH_SKIPPED_NO_GIT', 'PUSH_FAIL'],
+  push: [
+    'PUSH_OK',
+    'PUSH_NOTHING',
+    'PUSH_SKIPPED_NO_REMOTE',
+    'PUSH_SKIPPED_NO_GIT',
+    'PUSH_FAIL',
+    'PUSH_DETACHED',
+    'PUSH_NO_REMOTE_SELECTED',
+    'PUSH_REJECTED',
+  ],
   worktree: [
     'WORKTREE_READY:',
     'WORKTREE_EXISTS:',
@@ -67,7 +76,12 @@ const PROTOCOL = {
     'WORKTREE_CLEANUP_FAIL:',
     'WORKTREE_LIST_FAIL:',
     'VERIFY_RECORD_STALE:',
+    'WORKTREE_DETACHED:',
+    'WORKTREE_MERGE_IN_PROGRESS:',
+    'WORKTREE_MERGE_DIRTY:',
+    'WORKTREE_MERGE_CONFLICT:',
   ],
+  preflight: ['PREFLIGHT_OK', 'PREFLIGHT_FAIL:'],
   checkpoint: ['CHECKPOINT_NONE', 'CHECKPOINT_DONE', 'CHECKPOINT_EXISTS:'],
   selfcheck: ['PERMISSION_MODE:'],
   taskId: ['INVALID_TASK_ID:'],

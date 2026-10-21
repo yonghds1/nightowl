@@ -120,11 +120,59 @@
     "desc": "Push unpushed commits",
     "title": "🚀 Pushing unpushed commits",
     "noRemote": "⚠️ No git remote configured, skipping push",
+    "noRemoteSelected": "❌ Multiple remotes but no clear push target (branch: {{branch}}, remotes: {{remotes}})\n   ↪ Next: git branch --set-upstream-to=<remote>/{{branch}}",
+    "detached": "❌ Detached HEAD, cannot push automatically\n   ↪ Next: git switch <branch> and retry",
+    "rejected": "❌ Remote has moved ahead, push rejected ({{remote}}/{{branch}}):\n{{err}}\n   ↪ Next: git fetch {{remote}} && git rebase {{remote}}/{{branch}}",
     "nothing": "✅ No unpushed commits (branch: {{branch}})",
     "unpushed": "📦 {{n}} unpushed commit(s):",
     "ok": "✅ Pushed {{branch}}",
-    "log": "🚀 push origin {{branch}}",
+    "log": "🚀 push {{remote}} {{branch}}",
     "failed": "❌ Push failed:\n{{err}}"
+  },
+  "preflight": {
+    "desc": "Pre-flight git health check (repo/branch/identity/conflicts/cleanup)",
+    "title": "🩺 nightowl preflight",
+    "strictOption": "Treat warnings as failures (recommended before unattended runs)",
+    "summaryOk": "✅ Environment check passed",
+    "summaryFail": "❌ Environment check failed: {{n}} item(s) to fix",
+    "ok": {
+      "repo": "git repository OK",
+      "init": ".nightowl/ initialized",
+      "branch": "Current branch: {{branch}}",
+      "merge": "No unfinished merge/rebase/cherry-pick",
+      "shallow": "Repository is not a shallow clone",
+      "identity": "Commit identity: {{name}} <{{email}}>",
+      "dirty": "Working tree is clean",
+      "worktrees": "worktree metadata OK ({{n}} extra worktree(s))",
+      "ignored": ".nightowl/ is git-ignored",
+      "remote": "Remote(s) configured: {{remotes}}"
+    },
+    "warn": {
+      "dirty": "Working tree has {{n}} uncommitted change(s); merge requires a clean tree",
+      "shallow": "Shallow clone: merge-base/ancestry checks may be wrong",
+      "worktrees": "{{n}} worktree directory/directories no longer exist (stale metadata)",
+      "ignored": ".nightowl/ is not git-ignored; state files may be committed by mistake",
+      "remote": "No git remote configured; push will be skipped"
+    },
+    "fail": {
+      "repo": "Not inside a git repository (worktree/commit operations unavailable)",
+      "init": ".nightowl/ is not initialized",
+      "branch": "Detached HEAD: merge commits would be orphaned",
+      "merge": "Unfinished {{op}} in progress",
+      "identity": "Git commit identity (user.name / user.email) not configured"
+    },
+    "fix": {
+      "repo": "git init",
+      "init": "nightowl init -u <your-name>",
+      "branch": "git switch <integration-branch>",
+      "merge": "merge: git merge --abort; rebase: git rebase --abort; then commit the resolution",
+      "identity": "git config user.name \"<name>\" && git config user.email \"<email>\"",
+      "dirty": "git status; commit or git stash",
+      "shallow": "git fetch --unshallow",
+      "worktrees": "git worktree prune",
+      "ignored": "Add .nightowl/ to .gitignore",
+      "remote": "git remote add origin <url>"
+    }
   },
   "report": {
     "desc": "Generate report",

@@ -3,6 +3,36 @@ import { git, probeGit } from '../git.js';
 import { log } from '../state.js';
 import { t } from '../i18n.js';
 
+/**
+ * 选推送 remote:优先当前分支已跟踪的 remote → origin → 唯一 remote。
+ * 多个 remote 且无 origin/无跟踪时返回 null(歧义),由调用方报可执行的修复命令。
+ */
+export function selectPushRemote(remotes: string[], trackedRemote: string | null): string | null {
+  if (!remotes.length) return null;
+  if (trackedRemote && trackedRemote !== '.' && remotes.includes(trackedRemote)) return trackedRemote;
+  if (remotes.includes('origin')) return 'origin';
+  return remotes.length === 1 ? remotes[0] : null;
+}
+
+/** 远端拒绝的典型文案(non-fast-forward / 需要先 fetch / 钩子拒绝)。 */
+const NON_FAST_FORWARD = /non-fast-forward|fetch first|\[rejected\]|\[remote rejected\]|pre-receive hook declined/i;
+
+export function isNonFastForward(stderr: string): boolean {
+  return NON_FAST_FORWARD.test(stderr);
+}
+
+/** 当前分支名;detached HEAD 返回 null(不能靠 'main' 兜底,会推错分支)。 */
+function currentBranch(): string | null {
+  const r = git(['symbolic-ref', '--quiet', '--short', 'HEAD']);
+  return r.code === 0 && r.stdout.trim() ? r.stdout.trim() : null;
+}
+
+function fail(msg: string, token: string): never {
+  console.error(msg);
+  console.error(token);
+  process.exit(1);
+}
+
 export function createPushCommand(): Command {
   return new Command('push')
     .description(t('push.desc'))
@@ -20,10 +50,23 @@ export function createPushCommand(): Command {
         console.log('PUSH_SKIPPED_NO_REMOTE');
         return;
       }
-      const branch = git(['branch', '--show-current']).stdout || 'main';
-      // 分支从没推过时 origin/<branch> 不存在,视为全部未推送
-      const remoteRef = `origin/${branch}`;
-      const hasRemoteRef = git(['rev-parse', '--verify', '--quiet', remoteRef]).code === 0;
+
+      const branch = currentBranch();
+      if (!branch) {
+        fail(t('push.detached'), 'PUSH_DETACHED');
+      }
+
+      const trackedRemote = git(['config', '--get', `branch.${branch}.remote`]).stdout.trim() || null;
+      const remote = selectPushRemote(remotes, trackedRemote);
+      if (!remote) {
+        fail(t('push.noRemoteSelected', { branch, remotes: remotes.join(', ') }), 'PUSH_NO_REMOTE_SELECTED');
+      }
+
+      // 分支从没推过时 <remote>/<branch> 不存在,视为全部未推送;此时用 -u 建立跟踪,
+      // 否则下次推送仍然没有可比对的 upstream。
+      const remoteRef = `${remote}/${branch}`;
+      const hasRemoteRef =
+        git(['rev-parse', '--verify', '--quiet', `refs/remotes/${remoteRef}`]).code === 0;
       const unpushed = hasRemoteRef
         ? git(['log', `${remoteRef}..HEAD`, '--oneline']).stdout
         : git(['log', '--oneline']).stdout;
@@ -34,15 +77,21 @@ export function createPushCommand(): Command {
       }
       console.log(t('push.unpushed', { n: unpushed.split('\n').filter(Boolean).length }));
       console.log(unpushed);
-      const r = git(['push', 'origin', branch]);
+
+      const args = ['push'];
+      if (!hasRemoteRef) args.push('-u');
+      args.push(remote, branch);
+      const r = git(args);
       if (r.code === 0) {
         console.log(t('push.ok', { branch }));
-        log(t('push.log', { branch }));
+        log(t('push.log', { remote, branch }));
         console.log('PUSH_OK');
-      } else {
-        console.error(t('push.failed', { err: r.stderr.slice(-500) }));
-        console.error('PUSH_FAIL');
-        process.exit(1);
+        return;
       }
+
+      if (isNonFastForward(r.stderr)) {
+        fail(t('push.rejected', { remote, branch, err: r.stderr.slice(-500) }), 'PUSH_REJECTED');
+      }
+      fail(t('push.failed', { err: r.stderr.slice(-500) }), 'PUSH_FAIL');
     });
 }

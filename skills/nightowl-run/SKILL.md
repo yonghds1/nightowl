@@ -11,7 +11,9 @@ description: 静默执行任务池的核心子技能:自动循环派发任务"�
 开工第一步必须先自检权限与工作区状态：
 ```bash
 nightowl selfcheck
+nightowl preflight
 ```
+- `nightowl preflight` 体检 git 环境：失败项（未初始化 / detached HEAD / 无提交身份 / 未完成的 merge）必须先按提示修复；警告项（工作区脏 / 浅克隆 / 无 remote / 幽灵 worktree）记下即可，`--strict` 可把警告也当失败。
 - 输出 `PERMISSION_MODE: bypass` 且工作区无未跟踪/未暂存风险方可开工；
 - 若输出 `not_bypass` 或 `unknown`：**本技能不可用，必须停下开工动作，向用户弹权限申请**——
   明确告诉用户「nightowl-run 需要无权限确认模式，请以以下方式启动/授权」并等待用户操作后重新自检：

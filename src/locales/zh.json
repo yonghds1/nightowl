@@ -120,11 +120,59 @@
     "desc": "推送未推送的 commit",
     "title": "🚀 推送未推送的 commit",
     "noRemote": "⚠️ 没有配置 git remote,跳过推送",
+    "noRemoteSelected": "❌ 有多个 remote 但无法确定推送目标(branch: {{branch}}, remotes: {{remotes}})\n   ↪ 下一步: git branch --set-upstream-to=<remote>/{{branch}}",
+    "detached": "❌ 当前处于 detached HEAD,无法自动推送\n   ↪ 下一步: git switch <分支> 后重试",
+    "rejected": "❌ 远端已前进,推送被拒({{remote}}/{{branch}}):\n{{err}}\n   ↪ 下一步: git fetch {{remote}} && git rebase {{remote}}/{{branch}}",
     "nothing": "✅ 没有未推送的 commit(branch: {{branch}})",
     "unpushed": "📦 未推送 {{n}} 个 commit:",
     "ok": "✅ 已推送 {{branch}}",
-    "log": "🚀 push origin {{branch}}",
+    "log": "🚀 push {{remote}} {{branch}}",
     "failed": "❌ 推送失败:\n{{err}}"
+  },
+  "preflight": {
+    "desc": "无人值守前的 git 环境体检(仓库/分支/身份/冲突/清理)",
+    "title": "🩺 nightowl preflight",
+    "strictOption": "把警告也视为失败(无人值守前推荐)",
+    "summaryOk": "✅ 环境检查通过",
+    "summaryFail": "❌ 环境检查未通过: {{n}} 项需修复",
+    "ok": {
+      "repo": "git 仓库正常",
+      "init": ".nightowl/ 已初始化",
+      "branch": "当前分支: {{branch}}",
+      "merge": "没有未完成的 merge/rebase/cherry-pick",
+      "shallow": "仓库不是浅克隆",
+      "identity": "提交身份: {{name}} <{{email}}>",
+      "dirty": "工作区干净",
+      "worktrees": "worktree 元数据正常({{n}} 个附加工作树)",
+      "ignored": ".nightowl/ 已被 git 忽略",
+      "remote": "已配置 remote: {{remotes}}"
+    },
+    "warn": {
+      "dirty": "工作区有 {{n}} 项未提交改动(合并前需要 clean)",
+      "shallow": "浅克隆:merge-base/ancestry 判断可能失真",
+      "worktrees": "{{n}} 个 worktree 目录已不存在(幽灵元数据)",
+      "ignored": ".nightowl/ 未被 git 忽略,状态文件可能被误提交",
+      "remote": "没有配置 git remote,push 会被跳过"
+    },
+    "fail": {
+      "repo": "不在 git 仓库内(无法执行 worktree/commit 操作)",
+      "init": ".nightowl/ 未初始化",
+      "branch": "处于 detached HEAD,合并提交会游离丢失",
+      "merge": "存在未完成的 {{op}}",
+      "identity": "未配置 git 提交身份(user.name / user.email)"
+    },
+    "fix": {
+      "repo": "git init",
+      "init": "nightowl init -u <你的名字>",
+      "branch": "git switch <集成分支>",
+      "merge": "merge: git merge --abort;rebase: git rebase --abort;解决冲突后再提交",
+      "identity": "git config user.name \"<名字>\" && git config user.email \"<邮箱>\"",
+      "dirty": "git status;提交或 git stash",
+      "shallow": "git fetch --unshallow",
+      "worktrees": "git worktree prune",
+      "ignored": "把 .nightowl/ 加入 .gitignore",
+      "remote": "git remote add origin <url>"
+    }
   },
   "report": {
     "desc": "生成报告",
