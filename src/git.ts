@@ -1,4 +1,6 @@
 import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
 
 export interface GitResult {
   code: number;
@@ -146,4 +148,28 @@ export function gitFailure(result: GitResult | { code: number; stderr: string })
   if (result.stderr.includes(TIMEOUT_MARK) || result.stderr.includes(SHELL_TIMEOUT_MARK)) return 'timeout';
   if (result.code === 1) return 'business';
   return 'fatal';
+}
+
+/** 当前分支名;detached HEAD 返回 null(不能拿 'main' 兜底,会写错引用)。 */
+export function gitCurrentBranch(): string | null {
+  const r = git(['symbolic-ref', '--quiet', '--short', 'HEAD']);
+  return r.code === 0 && r.stdout.trim() ? r.stdout.trim() : null;
+}
+
+/** 未完成的 git 操作(merge/rebase/cherry-pick/revert);没有则 null。 */
+export function gitInProgressOp(): string | null {
+  const markers: [string, string][] = [
+    ['MERGE_HEAD', 'merge'],
+    ['rebase-merge', 'rebase'],
+    ['rebase-apply', 'rebase'],
+    ['CHERRY_PICK_HEAD', 'cherry-pick'],
+    ['REVERT_HEAD', 'revert'],
+  ];
+  for (const [marker, op] of markers) {
+    const p = git(['rev-parse', '--git-path', marker]);
+    if (p.code !== 0 || !p.stdout.trim()) continue;
+    // --git-path 返回相对 cwd 的路径(如 .git/MERGE_HEAD),resolve 后再判断存在性
+    if (fs.existsSync(path.resolve(p.stdout.trim()))) return op;
+  }
+  return null;
 }

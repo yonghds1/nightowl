@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { git, probeGit } from '../git.js';
+import { git, gitCurrentBranch, probeGit } from '../git.js';
 import { log } from '../state.js';
 import { t } from '../i18n.js';
 
@@ -19,12 +19,6 @@ const NON_FAST_FORWARD = /non-fast-forward|fetch first|\[rejected\]|\[remote rej
 
 export function isNonFastForward(stderr: string): boolean {
   return NON_FAST_FORWARD.test(stderr);
-}
-
-/** 当前分支名;detached HEAD 返回 null(不能靠 'main' 兜底,会推错分支)。 */
-function currentBranch(): string | null {
-  const r = git(['symbolic-ref', '--quiet', '--short', 'HEAD']);
-  return r.code === 0 && r.stdout.trim() ? r.stdout.trim() : null;
 }
 
 function fail(msg: string, token: string): never {
@@ -51,7 +45,7 @@ export function createPushCommand(): Command {
         return;
       }
 
-      const branch = currentBranch();
+      const branch = gitCurrentBranch();
       if (!branch) {
         fail(t('push.detached'), 'PUSH_DETACHED');
       }

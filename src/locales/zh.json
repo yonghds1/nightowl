@@ -94,6 +94,23 @@
     "failed": "❌ {{id}} 验收命令失败(退出码 {{code}}): {{cmd}}",
     "noHead": "⚠️ {{id}} 验收通过但取不到 git HEAD(目录: {{cwd}}),验证回执未绑定代码版本,worktree merge 的防偷改校验将不生效。"
   },
+  "commit": {
+    "desc": "按任务规范提交(自动补 [#<id>] 标记,默认禁用交互式签名/编辑器)",
+    "taskOption": "任务 ID(commit message 自动绑定该 ID)",
+    "messageOption": "commit message(无需手写 [#<id>],CLI 自动补到标题行首)",
+    "allOption": "提交前先 git add -A(默认只提交已暂存改动)",
+    "noVerifyOption": "跳过 pre-commit hook(--no-verify)",
+    "signOption": "保留 GPG 签名(默认 --no-gpg-sign,避免无人值守等密钥口令)",
+    "allowEmptyOption": "允许空提交(--allow-empty)",
+    "detached": "❌ 当前处于 detached HEAD,提交会游离丢失\n   ↪ 下一步: git switch <分支> 后重试",
+    "inProgress": "❌ 存在未完成的 {{op}},先收尾再提交\n   ↪ 下一步: merge 用 git merge --abort;rebase 用 git rebase --abort",
+    "noIdentity": "❌ 未配置 git 提交身份(user.name / user.email)\n   ↪ 下一步: git config user.name \"<名字>\" && git config user.email \"<邮箱>\"",
+    "wrongTask": "❌ commit message 里已有其他任务标记 [#{{found}}],与 --task {{id}} 不一致\n   ↪ 下一步: 去掉该标记后重试(CLI 会自动补 [#{{id}}])",
+    "nothing": "❌ 没有可提交的改动(默认只提交已暂存内容)\n   ↪ 下一步: git add <文件> 或 nightowl commit --task {{id}} -m \"...\" --all",
+    "stageFailed": "❌ git add -A 失败:\n{{err}}",
+    "failed": "❌ 提交失败:\n{{err}}",
+    "ok": "✅ 已提交 {{hash}}(任务 {{id}})"
+  },
   "analyze": {
     "desc": "项目文档分析",
     "title": "🔍 项目文档分析",
@@ -114,7 +131,8 @@
   },
   "sweep": {
     "desc": "清查残留 worktree",
-    "cleanOption": "真正删除已合入且无未提交改动的残留 worktree(默认只报告)"
+    "cleanOption": "真正删除已合入且无未提交改动的残留 worktree(默认只报告)",
+    "branchKeep": "⚠️ worktree 已移除,但分支 {{branch}} 未删除(仍有未合并提交),保留分支:\n{{err}}"
   },
   "push": {
     "desc": "推送未推送的 commit",

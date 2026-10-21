@@ -138,6 +138,7 @@ nightowl workflow list                             # 列出阶段、agent、任�
 
 - `nightowl next` 取下一个任务：输出调度协议（`WORKTREE_ROOT` / 制表符字段 / `PRD_PATH` / `DESCRIPTION` / `ACCEPTANCE` / `VERIFY`），并带续跑检测（`# RESUME_MERGE` / `# RESUME_COMMITTED` / `# RESUME in_progress`）
 - `nightowl review <id> --result PASS` 记录审查（`--level full|light`，多轮结果进 history）
+- `nightowl commit --task <id> -m "..." [--all]` 规范提交：自动补 `[#<id>]` 标记、默认 `--no-gpg-sign`、拒绝 detached HEAD / 半合并 / 错任务标记（`--no-verify` 跳过 hook，`--sign` 保留签名，`--allow-empty` 允许空提交）
 - `nightowl verify <id>` 跑验收命令，通过记录 `verify_passed`
 - `nightowl done <id> <actual_min>` 标记完成，**审查关口 + 测试关口 + git 核验**（校验主分支确有含 `[#<id>]` 标记的 commit；Claude 仅警告、其余平台默认阻断，`--require-commit` 可强制所有平台，`--force` 跳过全部）
 - `nightowl block <id> <reason>` 阻塞（立即保存 checkpoint）
@@ -164,6 +165,7 @@ nightowl workflow list                             # 列出阶段、agent、任�
 | `block` | 阻塞 |
 | `workflow generate/show/list` | 编译、应用和查看分阶段工作流 |
 | `verify` | 跑验收命令 |
+| `commit` | 规范提交（自动补 `[#id]`，禁用交互式签名/编辑器） |
 | `analyze` | 项目文档分析（产出项目上下文） |
 | `review` | 记录审查结果 |
 | `sweep` | 清查残留 worktree |

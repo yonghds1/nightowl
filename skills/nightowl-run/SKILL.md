@@ -36,8 +36,8 @@ nightowl preflight
    运行 `nightowl worktree setup <id>`，进入 `worktrees/<id>` 独立目录工作，杜绝污染主仓。
 3. **调度实现子代理**：
    使用平台子代理执行编码：{{PLATFORM_SUBAGENT_CALL}}。
-   在隔离工作区中实现需求，提交时 commit message 必须包含 `[#<id>]` 标签：
-   `git commit -m "[#<id>] feat: 实现目标功能"`
+   在隔离工作区中实现需求，并用 CLI 提交（自动补 `[#<id>]` 标记，默认禁用 GPG 签名与编辑器）：
+   `nightowl commit --task <id> -m "feat: 实现目标功能" --all`
 4. **机器门禁独立验证 (verify)**：
    运行 `nightowl verify --id <id>`。
    - 验证成功：系统自动绑定代码版本哈希；

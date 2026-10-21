@@ -94,6 +94,23 @@
     "failed": "❌ {{id}} verification command failed (exit code {{code}}): {{cmd}}",
     "noHead": "⚠️ {{id}} passed but git HEAD unavailable (dir: {{cwd}}); receipt is not bound to a code version and worktree merge stale-check will not apply."
   },
+  "commit": {
+    "desc": "Commit with task conventions (auto-adds [#<id>], disables interactive signing/editor)",
+    "taskOption": "Task ID (the commit message is bound to it)",
+    "messageOption": "Commit message (no need to write [#<id>]; the CLI prepends it)",
+    "allOption": "Run git add -A before committing (default: staged changes only)",
+    "noVerifyOption": "Skip pre-commit hooks (--no-verify)",
+    "signOption": "Keep GPG signing (default is --no-gpg-sign to avoid unattended passphrase prompts)",
+    "allowEmptyOption": "Allow an empty commit (--allow-empty)",
+    "detached": "❌ Detached HEAD: the commit would be orphaned\n   ↪ Next: git switch <branch> and retry",
+    "inProgress": "❌ Unfinished {{op}} in progress; finish it before committing\n   ↪ Next: merge: git merge --abort; rebase: git rebase --abort",
+    "noIdentity": "❌ Git commit identity (user.name / user.email) not configured\n   ↪ Next: git config user.name \"<name>\" && git config user.email \"<email>\"",
+    "wrongTask": "❌ The message already contains another task marker [#{{found}}], which conflicts with --task {{id}}\n   ↪ Next: remove that marker (the CLI will add [#{{id}}])",
+    "nothing": "❌ Nothing to commit (only staged changes are committed by default)\n   ↪ Next: git add <file> or nightowl commit --task {{id}} -m \"...\" --all",
+    "stageFailed": "❌ git add -A failed:\n{{err}}",
+    "failed": "❌ Commit failed:\n{{err}}",
+    "ok": "✅ Committed {{hash}} (task {{id}})"
+  },
   "analyze": {
     "desc": "Analyze project docs",
     "title": "🔍 Project documentation analysis",
@@ -114,7 +131,8 @@
   },
   "sweep": {
     "desc": "Sweep leftover worktrees",
-    "cleanOption": "Actually remove residual worktrees that are merged and clean (default: report only)"
+    "cleanOption": "Actually remove residual worktrees that are merged and clean (default: report only)",
+    "branchKeep": "⚠️ Worktree removed, but branch {{branch}} was kept (unmerged commits remain):\n{{err}}"
   },
   "push": {
     "desc": "Push unpushed commits",

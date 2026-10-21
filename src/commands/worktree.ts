@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import fs, { existsSync, mkdirSync, rmSync, readdirSync } from 'node:fs';
 import path from 'node:path';
-import { git, probeGit } from '../git.js';
+import { git, gitCurrentBranch, probeGit } from '../git.js';
 import { getBaseDir } from '../paths.js';
 import { loadPool } from '../state.js';
 import { assertTaskId } from '../task-id.js';
@@ -55,12 +55,6 @@ function branchExists(branch: string): boolean {
   return git(['show-ref', '--verify', '--quiet', `refs/heads/${branch}`]).code === 0;
 }
 
-/** 当前分支名;detached HEAD 返回 null(此时合并会把提交写到游离 HEAD 上)。 */
-function currentBranchName(): string | null {
-  const r = git(['symbolic-ref', '--quiet', '--short', 'HEAD']);
-  return r.code === 0 && r.stdout.trim() ? r.stdout.trim() : null;
-}
-
 /** 仓库是否停在未完成的 merge(冲突未解决)。 */
 function mergeInProgress(): boolean {
   return git(['rev-parse', '--quiet', '--verify', 'MERGE_HEAD']).code === 0;
@@ -91,6 +85,9 @@ export function createWorktreeCommand(): Command {
       }
       const targetDir = getWorktreePath(id);
       const branch = getWorktreeBranch(id);
+
+      // 先回收元数据:手工删过目录的 worktree 仍注册在册,会让后面的 add 报 "already registered"
+      git(['worktree', 'prune']);
 
       if (existsSync(targetDir)) {
         // 自愈孤儿空目录: 若是空目录则安全清理并重建
@@ -154,7 +151,7 @@ export function createWorktreeCommand(): Command {
       }
 
       // 合并前置条件:合进一个不干净/游离的 HEAD,失败后会把仓库留在半合并状态。
-      const targetBranch = currentBranchName();
+      const targetBranch = gitCurrentBranch();
       if (!targetBranch) {
         console.error(
           `WORKTREE_DETACHED: 当前处于 detached HEAD,合并会生成游离提交(切换分支后丢失)。\n` +
@@ -274,8 +271,14 @@ export function createWorktreeCommand(): Command {
       if (branchExists(branch)) {
         const branchDeleteArg = isForce ? '-D' : '-d';
         const rm = git(['branch', branchDeleteArg, branch]);
-        if (rm.code !== 0 && isForce) {
-          git(['branch', '-D', branch]);
+        if (rm.code !== 0) {
+          // -d 拒绝(仍有未合入提交)时,强删模式再试一次;仍失败要告知,别让分支悄悄堆积
+          const hard = isForce ? git(['branch', '-D', branch]) : rm;
+          if (hard.code !== 0) {
+            console.error(
+              `[warn] 分支 ${branch} 未删除(仍有未合并提交?),保留分支: ${hard.stderr || hard.stdout}`,
+            );
+          }
         }
       }
       console.log(`WORKTREE_CLEANED: ${id}`);

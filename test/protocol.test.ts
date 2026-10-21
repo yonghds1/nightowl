@@ -47,7 +47,9 @@ const PROTOCOL = {
     'SWEEP_KEEP_DIRTY:',
     'SWEEP_KEEP_UNKNOWN:',
     'SWEEP_REMOVE_FAIL:',
+    'SWEEP_KEEP_LOCKED:',
   ],
+  commit: ['COMMIT_OK', 'COMMIT_FAIL'],
   verify: ['ALL_PASS', 'VERIFY_NONE', 'ERROR:'],
   // INVALID_TASK_ID 由 task-id.ts 抛错、由各命令 catch 后打印,登记在 taskId 域
 

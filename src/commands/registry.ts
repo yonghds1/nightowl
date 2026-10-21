@@ -6,6 +6,7 @@ import { createNextCommand } from './next.js';
 import { createDoneCommand } from './done.js';
 import { createBlockCommand } from './block.js';
 import { createVerifyCommand } from './verify.js';
+import { createCommitCommand } from './commit.js';
 import { createAnalyzeCommand } from './analyze.js';
 import { createReviewCommand } from './review.js';
 import { createSweepCommand } from './sweep.js';
@@ -29,6 +30,7 @@ export const COMMAND_FACTORIES: CommandFactory[] = [
   createDoneCommand,
   createBlockCommand,
   createVerifyCommand,
+  createCommitCommand,
   createAnalyzeCommand,
   createReviewCommand,
   createSweepCommand,

@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import fs from 'node:fs';
 import path from 'node:path';
-import { git } from '../git.js';
+import { git, gitInProgressOp } from '../git.js';
 import { getBaseDir } from '../paths.js';
 import { t } from '../i18n.js';
 
@@ -11,29 +11,6 @@ export interface PreflightCheck {
   level: CheckLevel;
   message: string;
   fix?: string;
-}
-
-/** 未完成的 git 操作标记(合并/变基/拣选/回滚),存在任一都不该继续自动化。 */
-const IN_PROGRESS: { marker: string; op: string }[] = [
-  { marker: 'MERGE_HEAD', op: 'merge' },
-  { marker: 'rebase-merge', op: 'rebase' },
-  { marker: 'rebase-apply', op: 'rebase' },
-  { marker: 'CHERRY_PICK_HEAD', op: 'cherry-pick' },
-  { marker: 'REVERT_HEAD', op: 'revert' },
-];
-
-/** git 元数据路径(兼容 linked worktree:`--git-path` 会返回正确的 per-worktree 路径)。 */
-function gitPath(name: string): string | null {
-  const r = git(['rev-parse', '--git-path', name]);
-  return r.code === 0 && r.stdout.trim() ? path.resolve(r.stdout.trim()) : null;
-}
-
-function inProgressOp(): string | null {
-  for (const { marker, op } of IN_PROGRESS) {
-    const p = gitPath(marker);
-    if (p && fs.existsSync(p)) return op;
-  }
-  return null;
 }
 
 /** 统计 worktree 元数据里目录已消失的条目(手工 rm -rf 后的幽灵记录)。 */
@@ -86,7 +63,7 @@ export function runPreflight(strict = false): PreflightCheck[] {
   }
 
   // 未完成的 merge/rebase:此时任何自动化都会踩在半成品状态上
-  const op = inProgressOp();
+  const op = gitInProgressOp();
   if (op) {
     checks.push({
       level: 'fail',

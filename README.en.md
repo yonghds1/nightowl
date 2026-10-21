@@ -138,6 +138,7 @@ Slash commands are optional: saying "build X" / "start" / "report" also triggers
 
 - `nightowl next` fetch the next task: emits the scheduling protocol (`WORKTREE_ROOT` / tab-separated fields / `PRD_PATH` / `DESCRIPTION` / `ACCEPTANCE` / `VERIFY`) with resume detection (`# RESUME_MERGE` / `# RESUME_COMMITTED` / `# RESUME in_progress`)
 - `nightowl review <id> --result PASS` record a review (`--level full|light`, multiple rounds go into history)
+- `nightowl commit --task <id> -m "..." [--all]` convention commit: auto-adds `[#<id>]`, defaults to `--no-gpg-sign`, refuses detached HEAD / unfinished merge / wrong task marker (`--no-verify` skips hooks, `--sign` keeps signing, `--allow-empty` permits empty commits)
 - `nightowl verify <id>` run the acceptance command; records `verify_passed` on success
 - `nightowl done <id> <actual_min>` mark done, gated by **review gate + test gate + git check** (verifies the main branch has a commit tagged `[#<id>]`; Claude warns only, other platforms block by default — `--require-commit` forces it everywhere, `--force` bypasses all gates)
 - `nightowl block <id> <reason>` block (saves a checkpoint immediately)
@@ -164,6 +165,7 @@ Slash commands are optional: saying "build X" / "start" / "report" also triggers
 | `block` | Block |
 | `workflow generate/show/list` | Compile, apply and inspect staged workflows |
 | `verify` | Run acceptance command |
+| `commit` | Convention commit (auto `[#id]`, no interactive signing/editor) |
 | `analyze` | Analyze project docs (produce project context) |
 | `review` | Record review result |
 | `sweep` | Clean leftover worktrees |
