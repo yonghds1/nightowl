@@ -11,7 +11,7 @@ Multi-agent host support: **Claude Code / Codex / OpenCode / Antigravity CLI** (
 | Platform | alias | Skill install | Silent/permission | headless (supervise) | Status |
 |----------|-------|---------------|-------------------|----------------------|--------|
 | Claude Code | `--claude` (default) | `.claude/skills/` | settings.json allow + PreToolUse hook | `claude -p --continue` | ✅ verified (2.1.296) |
-| Codex | `--codex` | `.agents/skills/` | `.codex/config.toml` (never + workspace-write + network) + hooks.json | `codex exec resume --last` | ✅ verified (0.162.1) |
+| Codex | `--codex` | `.agents/skills/` | TUI/CLI with `--yolo` + trusted hooks.json | `codex exec --yolo resume --last` | ⚠️ hook schema verified; full TUI flow pending |
 | OpenCode | `--opencode` | `.agents/skills/` | `opencode.json` permission rules | `opencode run --auto --continue` | ✅ verified (1.18.35) |
 | Antigravity CLI | `--antigravity` | `.agents/skills/` + `.agents/agents/` | global `~/.gemini/antigravity-cli/settings.json` allow | `agy -p --dangerously-skip-permissions --continue` | ✅ verified (1.3.4) |
 
@@ -55,6 +55,14 @@ nightowl add --id T1 --title "implement string_reverse" --priority P0 --est-min 
 # 3. Inspect the task pool
 nightowl status
 ```
+
+## Codex: TUI vs CLI
+
+Nightowl creates/removes Git worktrees and commits code. Codex `workspace-write` protects `.git`, so it cannot support the run phase; use full-access `--yolo` (an alias for `--dangerously-bypass-approvals-and-sandbox`). This disables approvals and sandboxing, so use it only in trusted repositories.
+
+**Interactive TUI**: run `nightowl init -u <your-name> --codex` in the project, exit Codex completely, then start it with `codex --yolo`. In the TUI run `/hooks` and trust the project's `.codex/hooks.json`, trigger one tool call, then run `nightowl selfcheck`. Start Nightowl only after it prints `PERMISSION_MODE: bypass`.
+
+**Non-interactive CLI / supervise**: start with `codex exec --yolo "<prompt>"`; resume with `codex exec --yolo resume --last "<continuation prompt>"`. `nightowl supervise` invokes Codex this way and also bypasses Git-root and hook-trust interaction for unattended runs.
 
 ## Staged workflows
 

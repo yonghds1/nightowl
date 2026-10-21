@@ -136,7 +136,7 @@ describe('SKILL/模板选项引用 ⊆ 真实 CLI 选项', () => {
       expect(rendered, `${platform.id} 渲染后仍有未替换占位`).not.toMatch(/\{\{PLATFORM_[A-Z_]+\}\}/);
     }
     expect(claude.templateVars(process.cwd()).PLATFORM_RELAUNCH).toContain('--dangerously-skip-permissions');
-    expect(codex.templateVars(process.cwd()).PLATFORM_RELAUNCH).toContain('--sandbox');
+    expect(codex.templateVars(process.cwd()).PLATFORM_RELAUNCH).toContain('--yolo');
   });
 });
 

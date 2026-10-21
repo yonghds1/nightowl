@@ -50,6 +50,8 @@ export interface Platform {
   detectBypass(): boolean | null;
   /** 无交互启动命令(用于提示文案)。 */
   nonInteractiveCmd: string;
+  /** selfcheck 无法判定权限时的平台专用排障提示。 */
+  selfcheckUnknownHint?: string;
   /** 无人值守 headless 驱动(supervise 用)。宿主无对应机制则为 undefined。 */
   headlessRun?: HeadlessRun;
 }

@@ -29,7 +29,9 @@
 
 ## 详细测试日志
 
-### 1. Codex 平台实测报告 (`codex-cli 0.162.1`)
+### 1. Codex 平台验证记录
+
+> 0.5.4 更正：0.162.1 的旧记录只证明 headless `approval: never`，不能证明 TUI hook 与 Nightowl worktree 流程。Codex hook 的嵌套 `hooks` schema 与字符串 `command` 已在 0.163.0 验证；完整 TUI 链路仍需实测。Nightowl 会写 `.git`，当前推荐 TUI 使用 `codex --yolo`，headless 使用 `codex exec --yolo`。
 
 - **测试环境目录**: `.test-sandbox/codex-sandbox`
 - **初始化命令**: `nightowl init -u codex-tester --codex`
@@ -48,17 +50,18 @@
   - 生成 `.codex/hooks.json`:
     ```json
     {
-      "PreToolUse": [
+      "hooks": {
+        "PreToolUse": [
         {
           "hooks": [
             {
               "type": "command",
-              "command": "node",
-              "args": [".codex/hooks/permission-mode.mjs"]
+              "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/permission-mode.mjs\""
             }
           ]
         }
-      ]
+        ]
+      }
     }
     ```
 - **验证项 3: Hook 与 Selfcheck 联动**:

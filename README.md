@@ -11,7 +11,7 @@
 | 平台 | init 别名 | 技能铺入 | 静默/权限 | headless（supervise） | 状态 |
 |------|-----------|----------|-----------|----------------------|------|
 | Claude Code | `--claude`（默认） | `.claude/skills/` | settings.json allow + PreToolUse hook | `claude -p --continue` | ✅ 已实测 (2.1.296) |
-| Codex | `--codex` | `.agents/skills/` | `.codex/config.toml`（never+workspace-write+网络）+ hooks.json | `codex exec resume --last` | ✅ 已实测 (0.162.1) |
+| Codex | `--codex` | `.agents/skills/` | TUI/CLI 使用 `--yolo` + 受信任的 hooks.json | `codex exec --yolo resume --last` | ⚠️ hook schema 已验证，TUI 待完整实测 |
 | OpenCode | `--opencode` | `.agents/skills/` | `opencode.json` permission 规则 | `opencode run --auto --continue` | ✅ 已实测 (1.18.35) |
 | Antigravity CLI | `--antigravity` | `.agents/skills/` + `.agents/agents/` | 全局 `~/.gemini/antigravity-cli/settings.json` allow | `agy -p --dangerously-skip-permissions --continue` | ✅ 已实测 (1.3.4) |
 
@@ -55,6 +55,14 @@ nightowl add --id T1 --title "实现 string_reverse" --priority P0 --est-min 15 
 # 3. 查看任务池
 nightowl status
 ```
+
+## Codex：TUI 与 CLI 用法
+
+Nightowl 会创建/删除 Git worktree 并提交代码；Codex 的 `workspace-write` 会保护 `.git`，因此不能满足 run 阶段，必须使用 full-access 的 `--yolo`（即 `--dangerously-bypass-approvals-and-sandbox`）。这会关闭审批和沙箱，只应在可信仓库中使用。
+
+**交互式 TUI**：先在项目中运行 `nightowl init -u <你的名字> --codex`，完全退出当前 Codex，再用 `codex --yolo` 启动。进入后运行 `/hooks` 并信任项目 `.codex/hooks.json`，触发一次工具调用，再执行 `nightowl selfcheck`；看到 `PERMISSION_MODE: bypass` 才可运行 Nightowl。
+
+**非交互 CLI / supervise**：新会话用 `codex exec --yolo "<指令>"`，续接用 `codex exec --yolo resume --last "<续跑指令>"`。`nightowl supervise` 已按该模式调用 Codex，并额外跳过无人值守场景中的 Git 根和 hook 信任交互。
 
 ## 分阶段工作流
 

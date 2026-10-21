@@ -12,8 +12,7 @@ import { PROJECT_SKILLS } from '../skills.js';
 // 本机无 codex CLI,未做真实会话验证,待有 Codex 环境的用户实测后修正。
 // 关键更正(vs 早期实现):
 //   - 技能目录是 .agents/skills(官方扫描 CWD→repo root + ~/.agents/skills),不是 .codex/skills;
-//   - --full-auto 已废弃,headless 用 `codex exec --sandbox workspace-write`,静默配 config `approval_policy = "never"`;
-//   - workspace-write 沙箱默认禁网 → 合并/推送需 network_access = true。
+//   - Nightowl 要创建 worktree/commit,而 workspace-write 默认保护 .git,因此必须用 --yolo。
 // hook 脚本目录仍是 .codex/hooks(官方支持 <repo>/.codex/hooks.json);Codex PreToolUse stdin 含
 // permission_mode(枚举与 Claude 一致),故与 Claude 共用 permission-mode.mjs。
 
@@ -22,14 +21,14 @@ const CODEX_TEMPLATE_VARS: Record<string, string> = {
   PLATFORM_ASK:
     '用纯文本逐题提问,一次一题,每题编号给 2-4 个具体选项(Codex 无 AskUserQuestion 类交互工具)',
   PLATFORM_RELAUNCH:
-    '`codex exec --sandbox workspace-write --skip-git-repo-check`(静默需在 .codex/config.toml 配 `approval_policy = "never"`;非 git 目录必须带 --skip-git-repo-check;完全免沙箱用 `--dangerously-bypass-approvals-and-sandbox`)',
-  PLATFORM_HEADLESS: '`codex exec resume --last <续跑指令>`(首轮无历史会话去掉 resume 新起)',
+    'TUI 用 `codex --yolo` 重启,进入项目后用 `/hooks` 信任项目 hook;CLI/headless 用 `codex exec --yolo`',
+  PLATFORM_HEADLESS: '`codex exec --yolo resume --last <续跑指令>`(首轮无历史会话去掉 resume 新起)',
   PLATFORM_SUBAGENT_D:
     'Codex 子代理(无内置 worktree 隔离):先 `git worktree add <路径> -b <分支>` 建隔离工作区,\n       再指示 Codex 派 worker 子代理在该 worktree 目录下实现、commit',
   PLATFORM_SUBAGENT_CALL:
     '派发方式(Codex):\n- 主代理用 Bash `git worktree add <worktree路径> -b <任务分支>` 建隔离区\n- 以自然语言请求 Codex 派 worker 子代理,在 prompt 里显式给出 worktree 工作目录\n- 子代理在 worktree 内实现并 commit,回收合并见下"每个任务的完整闭环"',
   PLATFORM_SUBAGENT_DIR: '- 目录范围: 当前 worktree(由主代理指派给子代理的隔离工作区)',
-  PLATFORM_PUSH_MODE: '仅 bypass(workspace-write + network_access)下静默 push',
+  PLATFORM_PUSH_MODE: '仅 --yolo(bypass/full access)下静默 push',
 };
 
 function installTemplates(
@@ -147,6 +146,9 @@ function writePermissions(projectRoot: string, scope: 'project' | 'local' = 'pro
       return { added: [], target: targets.join(', '), hooksAdded: false };
     }
   }
+  if (hooksData.hooks !== undefined && (hooksData.hooks === null || typeof hooksData.hooks !== 'object' || Array.isArray(hooksData.hooks))) {
+    return { added: [], target: targets.join(', '), hooksAdded: false };
+  }
   fs.writeFileSync(cfgTarget, cfg, 'utf8');
   targets.push(cfgTarget);
 
@@ -158,7 +160,7 @@ function writePermissions(projectRoot: string, scope: 'project' | 'local' = 'pro
   //   (Claude 风格)被静默忽略,必须把参数拼进 command 字符串。
   // 用户已有同事件 group 时追加我们的 hook entry,不整体替换(否则会静默摧毁其自配钩子)。
   const hookPath = path.join('.codex', 'hooks', 'permission-mode.mjs');
-  const oursCommand = `node ${hookPath}`;
+  const oursCommand = 'node "$(git rev-parse --show-toplevel)/.codex/hooks/permission-mode.mjs"';
   const oursEntry = { type: 'command', command: oursCommand };
 
   // 兼容迁移:Claude 风格的 { "<事件>": [ {hooks:[...]} ] }(事件在顶层)整体搬进 hooks 表。
@@ -181,10 +183,12 @@ function writePermissions(projectRoot: string, scope: 'project' | 'local' = 'pro
   }
 
   const groups = Array.isArray(eventTable.PreToolUse) ? (eventTable.PreToolUse as unknown[]) : [];
-  const alreadyOurs = groups.some((g) => groupHasOurCommand(g, hookPath));
+  const cleanedGroups = groups.map((group) => removeLegacyNightowlEntries(group, hookPath)).filter(Boolean);
+  eventTable.PreToolUse = cleanedGroups;
+  const alreadyOurs = cleanedGroups.some((g) => groupHasOurCommand(g, hookPath));
   let hooksAdded = false;
   if (!alreadyOurs) {
-    eventTable.PreToolUse = [...groups, { hooks: [oursEntry] }];
+    eventTable.PreToolUse = [...cleanedGroups, { hooks: [oursEntry] }];
     added.push('hooks.PreToolUse → permission-mode.mjs');
     hooksAdded = true;
   }
@@ -193,6 +197,20 @@ function writePermissions(projectRoot: string, scope: 'project' | 'local' = 'pro
   targets.push(hookTarget);
 
   return { added, target: targets.join(', '), hooksAdded };
+}
+
+/** 移除 v0.5.1 写入的 Claude 风格 command+args 条目,保留同组中的用户 hook。 */
+function removeLegacyNightowlEntries(group: unknown, hookPath: string): unknown | null {
+  if (!group || typeof group !== 'object') return group;
+  const obj = group as Record<string, unknown>;
+  if (!Array.isArray(obj.hooks)) return group;
+  const want = path.normalize(hookPath).replaceAll('\\', '/');
+  const entries = obj.hooks.filter((entry) => {
+    if (!entry || typeof entry !== 'object') return true;
+    const e = entry as { command?: unknown; args?: unknown };
+    return !(e.command === 'node' && Array.isArray(e.args) && e.args.some((arg) => typeof arg === 'string' && path.normalize(arg).replaceAll('\\', '/').endsWith(want)));
+  });
+  return entries.length === 0 ? null : { ...obj, hooks: entries };
 }
 
 /** group(任意层级的 matcher 结构)里是否已含指向目标脚本的 command(按 command 字符串后缀匹配)。 */
@@ -205,7 +223,7 @@ function groupHasOurCommand(group: unknown, hookPath: string): boolean {
     const command = (e as { command?: unknown } | null)?.command;
     return (
       typeof command === 'string' &&
-      path.normalize(command).replaceAll('\\', '/').endsWith(want)
+      path.normalize(command).replaceAll('\\', '/').includes(want)
     );
   });
 }
@@ -238,11 +256,9 @@ export const codex: Platform = {
   installTemplates,
   writePermissions,
   detectBypass,
-  // --full-auto 已废弃;静默靠 config approval_policy=never(workspace-write)或显式 bypass 标志。
-  // --dangerously-bypass-hook-trust:无人值守轮里 hook 无法走交互信任流程,缺它 hook 静默不执行
-  // (实测 codex 0.163.0);只豁免 hook 信任,不放大沙箱权限。
-  nonInteractiveCmd:
-    'codex exec --sandbox workspace-write --skip-git-repo-check --dangerously-bypass-hook-trust',
+  selfcheckUnknownHint:
+    '无法检测 Codex 权限模式。请确认项目已受信任,在 TUI 用 `/hooks` 信任项目 hook,然后完全退出并以 `codex --yolo` 重启。',
+  nonInteractiveCmd: 'codex --yolo',
   headlessRun: {
     cmd: 'codex',
     // --skip-git-repo-check:任务根可能不是 git 仓库(多仓父目录),没它 codex 直接拒启动
@@ -251,13 +267,12 @@ export const codex: Platform = {
     // sandbox 权限来自 init 写入的 .codex/config.toml(approval_policy=never + workspace-write + 放网)。
     args(prompt, useContinue) {
       if (useContinue) {
-        return ['exec', 'resume', '--last', prompt, '--skip-git-repo-check', '--dangerously-bypass-hook-trust'];
+        return ['exec', '--yolo', '--skip-git-repo-check', '--dangerously-bypass-hook-trust', 'resume', '--last', prompt];
       }
       return [
         'exec',
+        '--yolo',
         '--skip-git-repo-check',
-        '--sandbox',
-        'workspace-write',
         '--dangerously-bypass-hook-trust',
         prompt,
       ];

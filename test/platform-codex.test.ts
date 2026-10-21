@@ -104,6 +104,15 @@ describe('codex platform', () => {
     expect(fs.existsSync(path.join(root, '.codex', 'config.toml'))).toBe(false);
   });
 
+  it('writePermissions 遇非法 hooks 表不写任何配置', () => {
+    fs.mkdirSync(path.join(root, '.codex'), { recursive: true });
+    fs.writeFileSync(path.join(root, '.codex', 'hooks.json'), JSON.stringify({ hooks: [] }), 'utf8');
+    const res = codex.writePermissions(root, 'project');
+    expect(res.hooksAdded).toBe(false);
+    expect(fs.existsSync(path.join(root, '.codex', 'config.toml'))).toBe(false);
+    expect(JSON.parse(fs.readFileSync(path.join(root, '.codex', 'hooks.json'), 'utf8'))).toEqual({ hooks: [] });
+  });
+
   it('writePermissions 不把顶层键插进"注释与其 section"之间;段尾注释块保持粘连', () => {
     fs.mkdirSync(path.join(root, '.codex'), { recursive: true });
     fs.writeFileSync(
@@ -183,7 +192,26 @@ describe('codex platform', () => {
     // args 字段会被 codex 静默忽略,必须拼成一条 command 字符串
     expect(typeof entry.command).toBe('string');
     expect(entry.command).toContain('permission-mode.mjs');
+    expect(entry.command).toContain('git rev-parse --show-toplevel');
     expect(entry.args).toBeUndefined();
+  });
+
+  it('writePermissions 迁移 v0.5.1 command+args,保留同组用户 hook', () => {
+    fs.mkdirSync(path.join(root, '.codex'), { recursive: true });
+    const legacy = { hooks: { PreToolUse: [{ hooks: [
+      { type: 'command', command: 'node', args: ['.codex/hooks/permission-mode.mjs'] },
+      { type: 'command', command: 'node my-audit.mjs' },
+    ] }] } };
+    fs.writeFileSync(path.join(root, '.codex', 'hooks.json'), JSON.stringify(legacy), 'utf8');
+    codex.writePermissions(root, 'project');
+    const hooks = JSON.parse(fs.readFileSync(path.join(root, '.codex', 'hooks.json'), 'utf8'));
+    const text = JSON.stringify(hooks);
+    expect(text).toContain('my-audit.mjs');
+    expect(text).toContain('git rev-parse --show-toplevel');
+    expect(text).not.toContain('"args"');
+    const before = fs.readFileSync(path.join(root, '.codex', 'hooks.json'), 'utf8');
+    codex.writePermissions(root, 'project');
+    expect(fs.readFileSync(path.join(root, '.codex', 'hooks.json'), 'utf8')).toBe(before);
   });
 
   it('installTemplates 铺 .agents/skills(官方扫描位)+ .codex/hook 脚本', () => {
@@ -223,18 +251,19 @@ describe('codex platform', () => {
     delete process.env.CODEX_PID;
   });
 
-  it('headlessRun:续接用 exec resume --last,首轮用 exec --sandbox;两分支都带 --skip-git-repo-check(非 git 根必失败)与 --dangerously-bypass-hook-trust(无信任则 hook 静默不跑)', () => {
+  it('headlessRun:续接与首轮都用 --yolo,并跳过 git/hook 交互门槛', () => {
     expect(codex.headlessRun?.cmd).toBe('codex');
     expect(codex.headlessRun?.args('P', true)).toEqual([
-      'exec', 'resume', '--last', 'P', '--skip-git-repo-check', '--dangerously-bypass-hook-trust',
+      'exec', '--yolo', '--skip-git-repo-check', '--dangerously-bypass-hook-trust', 'resume', '--last', 'P',
     ]);
     expect(codex.headlessRun?.args('P', false)).toEqual([
-      'exec', '--skip-git-repo-check', '--sandbox', 'workspace-write', '--dangerously-bypass-hook-trust', 'P',
+      'exec', '--yolo', '--skip-git-repo-check', '--dangerously-bypass-hook-trust', 'P',
     ]);
   });
 
   it('nonInteractiveCmd 不再使用废弃的 --full-auto', () => {
     expect(codex.nonInteractiveCmd).not.toContain('--full-auto');
-    expect(codex.nonInteractiveCmd).toContain('--sandbox');
+    expect(codex.nonInteractiveCmd).toBe('codex --yolo');
+    expect(codex.selfcheckUnknownHint).toContain('/hooks');
   });
 });
