@@ -13,9 +13,11 @@ plan 阶段的核心使命是：**在白天人机协同阶段，把需求、边�
 
 ### 1. 深度自主勘察（强制先于任何对话）
 收到用户需求后，先静默完成上下文勘察，严禁直接向用户提问：
-1. 运行 `nightowl analyze` 探索项目，阅读 `.nightowl/nightowl.context.md`；
+1. 任务池不存在时先在选定根目录运行 `nightowl init`；运行 `nightowl analyze`，阅读 `.nightowl/nightowl.context.md` 中的工作区类型、子项目、仓库路径和测试/构建线索；
 2. 检索目标代码、技术栈、依赖库（`package.json` 等）与现有测试套件；
 3. 输出 `## 勘察依据`：明确列出已核实的文件路径与行号。
+
+混合工作区根目录无需 `git init`。自动发现最多 4 层、1000 个目录，跳过隐藏目录、依赖及构建产物，不跟随目录符号链接，遇到仓库停止向内发现；扫描不完整时先解决范围问题，不能假设清单完整。代码勘察仍需核实各子项目实际入口与测试。
 
 > ⚠️ **死规矩**：凡是代码库、配置文件中已有定论的事实，严禁包装成问题反问用户。
 
@@ -42,6 +44,8 @@ plan 阶段的核心使命是：**在白天人机协同阶段，把需求、边�
 
 **工作流分流**：涉及多阶段交付、不同角色交接或阶段门禁时，读取同级 `../nightowl-workflows/SKILL.md`，沿用前两步已确认的需求边界；使用 `nightowl workflow generate --intent "需求描述" --no-apply` 生成骨架，或用 `--template feature|bugfix|refactor|audit` 显式选择原型，再落实项目门禁并应用。file 与生成选项互斥。简单独立任务继续使用下方 `nightowl add` 路径，不强制升级为工作流。
 
+每个任务必须在描述与 PRD 中明确涉及的相对子目录、Git 仓库和普通目录，列出逐仓提交要求及是否授权推送。混合工作区采用原目录串行执行，无统一版本绑定，不能承诺跨仓 worktree 隔离或自动回滚。预检检查发现的全部子仓库，有风险的无关仓库也会阻断，规划时应明确选择工作区根目录。
+
 每个任务必须独立、可验证，且**必须携带客观的自动化机器门禁**：
 - **L1 语法/类型门**：秒级过滤破损代码（例如 `npm run typecheck`）；
 - **L2 目标单测门**：针对本次新功能或修复的专门测试（例如 `npm test`）。
@@ -53,10 +57,22 @@ nightowl add --id T1 --title "实现核心鉴权模块" --priority P0 --est-min 
   --verify "npm test"
 ```
 
+混合目录的门禁从根目录执行，必须显式进入目标项目；路径含空格须引用。例如：
+
+```bash
+nightowl add --id T2 --title "跨项目修改" --priority P1 --est-min 30 \
+  --desc "修改 repo-a、repo b 和 scripts；逐仓提交，未授权推送" \
+  --verify 'cd repo-a && npm run typecheck' \
+  --verify 'cd "repo b" && npm test' \
+  --verify 'node --check scripts/check.js'
+```
+
+普通目录也必须具备实际检查，禁止以 Git 操作跳过当成验收通过。
+
 > ⚠️ **门禁红线**：禁止创建无 `--verify` 命令的任务，无目标门禁的任务必须打回重拆。
 
 ### 4. 终审与一键开工
-输出终审摘要（10 秒扫完）：
+运行 `nightowl preflight` 核实环境；真实失败在 plan 阶段解决，不能无条件初始化根仓库。输出终审摘要（10 秒扫完）：
 1. 边界决策结论表（动哪些 / 不动哪些）；
 2. 任务清单与优先级 (`nightowl status`)；
 3. 每个任务对应的自动化门禁命令。

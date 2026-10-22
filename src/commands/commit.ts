@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { git, gitCurrentBranch, gitInProgressOp } from '../git.js';
+import { git, gitCurrentBranch, gitInProgressOp, probeGit } from '../git.js';
 import { loadPool } from '../state.js';
 import { assertTaskId } from '../task-id.js';
 import { t } from '../i18n.js';
@@ -53,6 +53,13 @@ export function createCommitCommand(): Command {
         fail((err as Error).message);
       }
 
+      let repo: ReturnType<typeof probeGit>;
+      try {
+        repo = probeGit();
+      } catch (error: unknown) {
+        fail(t('workspace.error', { error: (error as Error).message }));
+      }
+      if (!repo.isRepo) fail(t('commit.noRepo'));
       if (!gitCurrentBranch()) fail(t('commit.detached'));
       const op = gitInProgressOp();
       if (op) fail(t('commit.inProgress', { op }));

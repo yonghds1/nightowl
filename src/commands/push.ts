@@ -64,6 +64,7 @@ export function createPushCommand(): Command {
       // 各子仓的推送由任务命令自带(cd 子仓 && git push),nightowl 不越俎代庖。
       if (!probeGit().isRepo) {
         console.log('PUSH_SKIPPED_NO_GIT');
+        console.log(t('workspace.pushSkipped'));
         return;
       }
       const remotes = git(['remote']).stdout.split(/\s+/).filter(Boolean);

@@ -83,7 +83,6 @@
     "ok": "✅ {{id}} marked done",
     "prdBackfilled": "📄 PRD backfilled by done: checked {{n}} acceptance command(s) with execution receipts",
     "prdBackfillSkipped": "📄 PRD backfill skipped ({{reason}}); task state unaffected",
-
     "persistFailed": "❌ Could not persist task {{id}} (the pool changed during the operation; task may be gone)"
   },
   "block": {
@@ -112,7 +111,8 @@
     "nothing": "❌ Nothing to commit (only staged changes are committed by default)\n   ↪ Next: git add <file> or nightowl commit --task {{id}} -m \"...\" --all",
     "stageFailed": "❌ git add -A failed:\n{{err}}",
     "failed": "❌ Commit failed:\n{{err}}",
-    "ok": "✅ Committed {{hash}} (task {{id}})"
+    "ok": "✅ Committed {{hash}} (task {{id}})",
+    "noRepo": "Current directory is not a Git repository; enter the target child Git repository to commit. Ordinary directories do not require a Git commit."
   },
   "analyze": {
     "desc": "Analyze project docs",
@@ -379,5 +379,14 @@
       "inspect": "Audit scope and file/line evidence are recorded without source remediation.",
       "report": "Findings include severity, evidence and recommendations; no fixes are applied."
     }
+  },
+  "workspace": {
+    "mode": "Workspace mode: {{mode}}",
+    "direct": "Run tasks serially in the original directories; root worktree/merge/cleanup are skipped, without unified Git version binding.",
+    "error": "Workspace check failed or discovery incomplete: {{error}}",
+    "noHead": "Repository has no usable HEAD commit; create an initial commit in this repository first.",
+    "project": "Project directory: {{path}}",
+    "repository": "Git repository: {{path}}",
+    "pushSkipped": "No push was performed at the root or in any child repository; push individual repositories only when explicitly required by the task."
   }
 }

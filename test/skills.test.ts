@@ -67,7 +67,9 @@ function collectNightowlOptions(text: string): Set<string> {
     while (block.trimEnd().endsWith('\\')) {
       block = block.replace(/\\\s*$/, ' ') + lines[++i];
     }
-    for (const m of block.matchAll(/--[a-z][a-z-]+/g)) s.add(m[0]);
+    // Quoted values may contain commands with their own flags (e.g. --verify).
+    const invocation = block.replace(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/g, '');
+    for (const m of invocation.matchAll(/--[a-z][a-z-]+/g)) s.add(m[0]);
   }
   return s;
 }
@@ -158,5 +160,27 @@ describe('plan/report SKILL 关键流程不丢', () => {
   it.each(['plan', 'report'])('%s SKILL 可读', (d) => {
     const text = fs.readFileSync(path.join(pkgRoot(), 'skills', `nightowl-${d}`, 'SKILL.md'), 'utf8');
     expect(text.length).toBeGreaterThan(100);
+  });
+});
+
+describe('quoted verify commands are not Nightowl options', () => {
+  it('keeps the real option and ignores nested tool flags', () => {
+    const options = collectNightowlOptions(`nightowl add --id T1 --verify 'node --check file.js'`);
+    expect(options.has('--verify')).toBe(true);
+    expect(options.has('--check')).toBe(false);
+    expect(options.has('--id')).toBe(true);
+  });
+});
+
+describe('mixed workspace skill contracts', () => {
+  it.each(['skills/nightowl-run/SKILL.md', 'templates/commands/nightowl/run.md'])('%s explains the degraded branch', (file) => {
+    const text = fs.readFileSync(path.join(pkgRoot(), file), 'utf8');
+    for (const token of ['WORKTREE_SKIPPED:', 'WORKTREE_MERGE_SKIPPED:', 'WORKTREE_CLEAN_SKIPPED:', 'PUSH_SKIPPED_NO_GIT']) {
+      expect(text).toContain(token);
+    }
+    expect(text).toContain('串行');
+    expect(text).toContain('普通目录');
+    expect(text).toContain('版本绑定');
+    expect(text).toContain('preflight');
   });
 });

@@ -127,11 +127,31 @@ export function runShell(
 }
 
 /** 探测 cwd 是否在 git 仓库内(仓库根路径)。非 git 环境(多仓父目录/普通目录)isRepo=false。
+ *  Git 不可执行、超时或仓库损坏时抛错，不能误判为可降级的普通目录。
  *  每毫秒级开销,不缓存——用户可能中途 git init。 */
 export function probeGit(cwd = process.cwd()): { isRepo: boolean; root: string } {
   const r = git(['rev-parse', '--show-toplevel'], { cwd });
   if (r.code === 0 && r.stdout.trim()) return { isRepo: true, root: r.stdout.trim() };
-  return { isRepo: false, root: '' };
+  // Only Git's explicit not-repository result permits a degraded workflow.
+  // A damaged .git often produces the same stderr; look for markers along ancestors.
+  let dir = path.resolve(cwd);
+  let hasMarker = false;
+  while (true) {
+    try {
+      fs.lstatSync(path.join(dir, '.git'));
+      hasMarker = true;
+      break;
+    } catch (error: unknown) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  if (!hasMarker && /^fatal: not a git repository \(or any of the parent directories\): \.git\s*$/.test(r.stderr.trim())) {
+    return { isRepo: false, root: '' };
+  }
+  throw new Error(r.stderr || r.stdout || `Git probe failed: ${cwd}`);
 }
 
 /**
@@ -157,7 +177,7 @@ export function gitCurrentBranch(): string | null {
 }
 
 /** 未完成的 git 操作(merge/rebase/cherry-pick/revert);没有则 null。 */
-export function gitInProgressOp(): string | null {
+export function gitInProgressOp(cwd = process.cwd()): string | null {
   const markers: [string, string][] = [
     ['MERGE_HEAD', 'merge'],
     ['rebase-merge', 'rebase'],
@@ -166,10 +186,12 @@ export function gitInProgressOp(): string | null {
     ['REVERT_HEAD', 'revert'],
   ];
   for (const [marker, op] of markers) {
-    const p = git(['rev-parse', '--git-path', marker]);
-    if (p.code !== 0 || !p.stdout.trim()) continue;
+    const p = git(['rev-parse', '--git-path', marker], { cwd });
+    if (p.code !== 0 || !p.stdout.trim()) {
+      throw new Error(p.stderr || `Cannot inspect Git operation: ${marker}`);
+    }
     // --git-path 返回相对 cwd 的路径(如 .git/MERGE_HEAD),resolve 后再判断存在性
-    if (fs.existsSync(path.resolve(p.stdout.trim()))) return op;
+    if (fs.existsSync(path.resolve(cwd, p.stdout.trim()))) return op;
   }
   return null;
 }

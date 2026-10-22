@@ -217,3 +217,13 @@ npm run typecheck  # 类型检查
 ## License
 
 [ISC](LICENSE)
+
+## 根目录无 Git 的混合工作区
+
+支持在统一根目录下管理多个 Git 子仓库和普通目录，无需在根目录 `git init`。首次在根运行 `nightowl init`，然后 `nightowl analyze` 查看子项目，`nightowl preflight` 检查发现的全部子仓库；真实 Git 故障、detached HEAD、缺身份、空仓和未完成合并仍阻断。`--strict` 将脏目录、无 remote 等警告升级为失败，纯非 Git 目录可以正常通过严格检查。
+
+勘察最多 4 层、1000 个目录，跳过隐藏目录、依赖和构建产物、不跟随目录符号链接；遇到仓库后停止向内发现。扫描截断会使预检失败，应选择范围适当的工作区根目录。
+
+混合模式按任务串行、直接修改原目录，跳过根 worktree/merge/cleanup。各 Git 子仓库只暂存本任务文件，再在该子仓执行 `nightowl commit --task T1 -m "实现任务"`；普通目录无需提交。子仓提交会找到祖先任务池，`--dir` 会改变 Git 执行目录，不能用于仅指定任务池。完成提交后回根目录验收，门禁如 `--verify 'cd "repo a" && npm test'`，普通目录也需要实际检查。
+
+此模式没有隔离、跨仓回滚或统一 Git 版本绑定；无 HEAD 的验收会明确告警，done 不机器核验各子仓提交。相关提交状态需由审查核实。根 `nightowl push` 返回 `PUSH_SKIPPED_NO_GIT`，没有推送任何子仓；仅在任务明确授权时分别推送。已有脏改动不自动 stash/reset/提交。

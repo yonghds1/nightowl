@@ -1,8 +1,10 @@
 import { Command } from 'commander';
 import fs from 'node:fs';
+import path from 'node:path';
 import { CONTEXT_FILE } from '../paths.js';
 import { log } from '../state.js';
 import { t } from '../i18n.js';
+import { BUILD_FILES, DOC_FILES, discoverWorkspace } from '../workspace.js';
 
 /** 从 JSON 依赖清单里取 scripts/构建命令(形如 `test: vitest run`)。
  *  解析失败返回 null(交回逐行扫描兜底),不因一个坏文件让 analyze 崩掉。 */
@@ -36,17 +38,89 @@ function extractJsonScripts(text: string): string[] | null {
   return out;
 }
 
-const DOC_KEYWORDS = ['README', 'readme', 'README.md', 'README.txt'];
-const BUILD_FILES = [
-  'package.json',
-  'pyproject.toml',
-  'Cargo.toml',
-  'go.mod',
-  'requirements.txt',
-  'setup.py',
-];
 const CI_FILES = ['.gitlab-ci.yml', 'Jenkinsfile', '.circleci', 'azure-pipelines.yml'];
 const KEY_DIRS = ['src', 'tests', 'lib', 'app'];
+
+/** Do not follow project metadata/implementation-directory symlinks outside the workspace. */
+function isEntry(file: string, kind: 'file' | 'directory'): boolean {
+  try {
+    const stat = fs.lstatSync(file);
+    return kind === 'file' ? stat.isFile() : stat.isDirectory();
+  } catch (error: unknown) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
+    throw error;
+  }
+}
+
+function collectProjectContext(dir: string): string[] {
+  const ctx: string[] = [];
+  // 1. 构建/依赖文件 → 技术栈 + 测试/构建命令
+  const buildFiles: string[] = [];
+  for (const f of BUILD_FILES) {
+    if (!isEntry(path.join(dir, f), 'file')) continue;
+    buildFiles.push(f);
+    const text = fs.readFileSync(path.join(dir, f), 'utf8');
+    // JSON 依赖清单(package.json 等)整行都以 `"` 开头,逐行扫描会被前缀过滤全部跳过,
+    // 必须先按 JSON 解析取 scripts;非 JSON 的清单(Toml/gomod/requirements)才逐行扫。
+    const jsonScripts = f.endsWith('.json') ? extractJsonScripts(text) : null;
+    if (jsonScripts) {
+      ctx.push(...jsonScripts.map((line) => `    ${line}`));
+      continue;
+    }
+    for (const raw of text.slice(0, 1200).split('\n')) {
+      const s = raw.trim();
+      if (!s || /^(#|\/\/|\[)/.test(s)) continue;
+      if (['test', 'script', 'build'].some((k) => s.toLowerCase().includes(k))) {
+        ctx.push(`    ${s}`);
+      }
+    }
+  }
+  if (buildFiles.length) ctx.unshift(t('analyze.buildDeps', { files: buildFiles.join(', ') }));
+
+  // 2. README 前几句
+  for (const f of DOC_FILES) {
+    if (!isEntry(path.join(dir, f), 'file')) continue;
+    const head = fs
+      .readFileSync(path.join(dir, f), 'utf8')
+      .slice(0, 1000)
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .slice(0, 6);
+    if (head.length) {
+      ctx.push(t('analyze.readmeSummary'));
+      ctx.push(...head.map((l) => `    ${l}`));
+    }
+    break;
+  }
+
+  // 3. CI 配置
+  if (isEntry(path.join(dir, '.github'), 'directory') && isEntry(path.join(dir, '.github/workflows'), 'directory')) {
+    const wfs = fs
+      .readdirSync(path.join(dir, '.github/workflows'))
+      .filter((n) => (n.endsWith('.yml') || n.endsWith('.yaml')) && isEntry(path.join(dir, '.github/workflows', n), 'file'))
+      .sort();
+    for (const wf of wfs) {
+      const body = fs
+        .readFileSync(path.join(dir, '.github/workflows', wf), 'utf8')
+        .slice(0, 250)
+        .split(/\s+/)
+        .join(' ');
+      ctx.push(t('analyze.ciWorkflow', { wf, body: body.slice(0, 150) }));
+    }
+  }
+  for (const ci of CI_FILES) {
+    if (fs.existsSync(path.join(dir, ci))) ctx.push(t('analyze.ciFile', { ci }));
+  }
+
+  // 4. 关键目录
+  for (const d of KEY_DIRS) {
+    if (!isEntry(path.join(dir, d), 'directory')) continue;
+    const files = fs.readdirSync(path.join(dir, d)).slice(0, 10);
+    ctx.push(`- ${d}/: ${files.join(', ')}`);
+  }
+  return ctx;
+}
 
 export function createAnalyzeCommand(): Command {
   return new Command('analyze')
@@ -54,70 +128,19 @@ export function createAnalyzeCommand(): Command {
     .action(() => {
       const ctx: string[] = [];
 
-      // 1. 构建/依赖文件 → 技术栈 + 测试/构建命令
-      const buildFiles: string[] = [];
-      for (const f of BUILD_FILES) {
-        if (!fs.existsSync(f)) continue;
-        buildFiles.push(f);
-        const text = fs.readFileSync(f, 'utf8');
-        // JSON 依赖清单(package.json 等)整行都以 `"` 开头,逐行扫描会被前缀过滤全部跳过,
-        // 必须先按 JSON 解析取 scripts;非 JSON 的清单(Toml/gomod/requirements)才逐行扫。
-        const jsonScripts = f.endsWith('.json') ? extractJsonScripts(text) : null;
-        if (jsonScripts) {
-          ctx.push(...jsonScripts.map((line) => `    ${line}`));
-          continue;
+      const workspace = discoverWorkspace();
+      ctx.push(t('workspace.mode', { mode: workspace.kind }));
+      if (workspace.kind !== 'single-repo') ctx.push(t('workspace.direct'));
+      for (const error of workspace.errors) ctx.push(t('workspace.error', { error }));
+      for (const dir of new Set([workspace.root, ...workspace.projects])) {
+        const relative = path.relative(workspace.root, dir) || '.';
+        ctx.push(t('workspace.project', { path: relative }));
+        if (workspace.repositories.includes(dir)) ctx.push(t('workspace.repository', { path: relative }));
+        try {
+          ctx.push(...collectProjectContext(dir));
+        } catch (error: unknown) {
+          ctx.push(t('workspace.error', { error: `${dir}: ${(error as Error).message}` }));
         }
-        for (const raw of text.slice(0, 1200).split('\n')) {
-          const s = raw.trim();
-          if (!s || /^(#|\/\/|\[)/.test(s)) continue;
-          if (['test', 'script', 'build'].some((k) => s.toLowerCase().includes(k))) {
-            ctx.push(`    ${s}`);
-          }
-        }
-      }
-      if (buildFiles.length) ctx.unshift(t('analyze.buildDeps', { files: buildFiles.join(', ') }));
-
-      // 2. README 前几句
-      for (const f of DOC_KEYWORDS) {
-        if (!fs.existsSync(f)) continue;
-        const head = fs
-          .readFileSync(f, 'utf8')
-          .slice(0, 1000)
-          .split('\n')
-          .map((l) => l.trim())
-          .filter(Boolean)
-          .slice(0, 6);
-        if (head.length) {
-          ctx.push(t('analyze.readmeSummary'));
-          ctx.push(...head.map((l) => `    ${l}`));
-        }
-        break;
-      }
-
-      // 3. CI 配置
-      if (fs.existsSync('.github/workflows')) {
-        const wfs = fs
-          .readdirSync('.github/workflows')
-          .filter((n) => n.endsWith('.yml') || n.endsWith('.yaml'))
-          .sort();
-        for (const wf of wfs) {
-          const body = fs
-            .readFileSync(`.github/workflows/${wf}`, 'utf8')
-            .slice(0, 250)
-            .split(/\s+/)
-            .join(' ');
-          ctx.push(t('analyze.ciWorkflow', { wf, body: body.slice(0, 150) }));
-        }
-      }
-      for (const ci of CI_FILES) {
-        if (fs.existsSync(ci)) ctx.push(t('analyze.ciFile', { ci }));
-      }
-
-      // 4. 关键目录
-      for (const d of KEY_DIRS) {
-        if (!fs.existsSync(d)) continue;
-        const files = fs.readdirSync(d).slice(0, 10);
-        ctx.push(`- ${d}/: ${files.join(', ')}`);
       }
 
       console.log(t('analyze.title'));

@@ -111,7 +111,8 @@
     "nothing": "❌ 没有可提交的改动(默认只提交已暂存内容)\n   ↪ 下一步: git add <文件> 或 nightowl commit --task {{id}} -m \"...\" --all",
     "stageFailed": "❌ git add -A 失败:\n{{err}}",
     "failed": "❌ 提交失败:\n{{err}}",
-    "ok": "✅ 已提交 {{hash}}(任务 {{id}})"
+    "ok": "✅ 已提交 {{hash}}(任务 {{id}})",
+    "noRepo": "当前目录不是 Git 仓库；请进入目标 Git 子仓库后提交。普通目录无需 Git 提交。"
   },
   "analyze": {
     "desc": "项目文档分析",
@@ -378,5 +379,14 @@
       "inspect": "已记录审计范围与文件行号证据，未实施源码修复。",
       "report": "报告包含严重程度、证据与建议，未自动实施修复。"
     }
+  },
+  "workspace": {
+    "mode": "工作区类型: {{mode}}",
+    "direct": "原目录串行执行；跳过根目录 worktree/合并/清理，无统一 Git 版本绑定。",
+    "error": "工作区检查失败或扫描不完整: {{error}}",
+    "noHead": "仓库没有可用的 HEAD 提交，需先在该仓库创建初始提交。",
+    "project": "项目目录: {{path}}",
+    "repository": "Git 仓库: {{path}}",
+    "pushSkipped": "根目录未执行推送，也没有推送任何子仓库；仅在任务明确约定时分别推送目标仓库。"
   }
 }

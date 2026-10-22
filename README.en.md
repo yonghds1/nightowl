@@ -217,3 +217,13 @@ npm run typecheck  # type check
 ## License
 
 [ISC](LICENSE)
+
+## Mixed workspaces without a root Git repository
+
+A workspace can contain multiple Git repositories and ordinary directories under one `.nightowl/` task pool. Do not initialize Git at the root just for Nightowl. Run `nightowl init`, `nightowl analyze`, and `nightowl preflight` from the selected root. Preflight checks every discovered child repository; actual Git failures, detached HEAD, missing identity, an empty repository, or unfinished Git operations remain failures. `--strict` promotes warnings such as dirty files or missing remotes; a purely non-Git directory can pass strict checks.
+
+Discovery visits at most 4 levels and 1000 directories, skips hidden/dependency/build directories, does not follow directory symlinks, and stops at each repository boundary. Incomplete discovery fails preflight; select a suitably scoped workspace root.
+
+Tasks run serially in their original directories, skipping root worktree/merge/cleanup. In each affected Git repository stage only task files and run `nightowl commit --task T1 -m "Implement task"`. Ordinary directories require no Git commit. Child commands find the ancestor task pool; `--dir` changes the Git execution directory as well, so do not point it at the root for child commits. Return to the workspace root for verification, using explicit paths such as `--verify 'cd "repo a" && npm test'`. Ordinary directories also need real checks.
+
+This mode provides no isolation, cross-repository rollback, or unified Git version binding. Verification warns when no HEAD is available, and done does not mechanically check every child commit. Review must check actual commits. A root `nightowl push` returning `PUSH_SKIPPED_NO_GIT` pushes no child repository; push individually only if explicitly authorized by the task. Existing user changes are never automatically stashed, reset, or committed.
