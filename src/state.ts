@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import yaml from 'js-yaml';
 import {
   POOL_FILE,
@@ -8,8 +9,9 @@ import {
   CHECKPOINT_FILE,
   CHECKPOINT_BACKUP,
   ensureBaseDir,
+  getBaseDir,
 } from './paths.js';
-import { fmtDateTime, isoNow } from './util.js';
+import { fmtDateTime, isoNow, rotateFileIfLarge } from './util.js';
 import { t } from './i18n.js';
 import { assertTaskId } from './task-id.js';
 
@@ -253,6 +255,60 @@ export const _lockForTest = {
   LOCK_RETRY_BUDGET_MS,
 };
 
+/** store 级锁的基名:与单文件写锁(${file}.lock)分开,避免自锁。 */
+const STORE_LOCK_BASE = (): string => path.join(getBaseDir(), '.store');
+
+/**
+ * 在跨进程锁内执行"读-改-写"事务。
+ * 回调返回 false 表示放弃本次写入(例如目标任务已不存在)。
+ * 锁预算内拿不到锁时仍然执行(宁可继续也不让 CLI 死锁),但会告警。
+ */
+export function withStoreLock<T>(fn: () => T): T {
+  ensureBaseDir();
+  let locked = false;
+  try {
+    locked = acquireLockWithRetry(STORE_LOCK_BASE());
+  } catch {
+    locked = false;
+  }
+  if (!locked) {
+    console.error(
+      `[nightowl] warn: store lock busy within ${lockTiming.budgetMs}ms; ` +
+        'writing without cross-process serialization',
+    );
+  }
+  try {
+    return fn();
+  } finally {
+    if (locked) releaseLock(STORE_LOCK_BASE());
+  }
+}
+
+/**
+ * 事务化修改任务池:锁内重新读取最新文件,再应用变更。
+ * 这是修"长任务用陈旧快照整文件回写、覆盖并发修改"的关键:
+ * verify 跑测试期间别人改了 review/status,这里不会把它们抹掉。
+ */
+export function updatePool(mutate: (pool: Pool) => boolean | void): boolean {
+  return withStoreLock(() => {
+    const pool = loadPool();
+    if (!pool) return false;
+    if (mutate(pool) === false) return false;
+    atomicWrite(POOL_FILE(), yaml.dump(pool, { noRefs: true }));
+    return true;
+  });
+}
+
+/** 事务化修改运行状态;语义同 updatePool。 */
+export function updateState(mutate: (state: AppState) => boolean | void): boolean {
+  return withStoreLock(() => {
+    const state = loadState();
+    if (mutate(state) === false) return false;
+    atomicWrite(STATE_FILE(), yaml.dump(state, { noRefs: true }));
+    return true;
+  });
+}
+
 export function loadPool(): Pool | null {
   const f = POOL_FILE();
   if (!fs.existsSync(f)) return null;
@@ -447,8 +503,18 @@ export function saveState(state: AppState): void {
   atomicWrite(STATE_FILE(), yaml.dump(state, { noRefs: true }));
 }
 
+/** nightowl.log 单文件上限:超过则轮转为 .1(只保留一份),防无人值守长跑无限膨胀。 */
+const LOG_MAX_BYTES = 5 * 1024 * 1024;
+let logMaxBytes = LOG_MAX_BYTES;
+
+/** 仅供单测调整日志轮转阈值;传 null 恢复默认。 */
+export function setLogMaxBytesForTest(n: number | null): void {
+  logMaxBytes = n ?? LOG_MAX_BYTES;
+}
+
 export function log(msg: string): void {
   ensureBaseDir();
+  rotateFileIfLarge(LOG_FILE(), logMaxBytes);
   const line = `[${fmtDateTime()}] ${msg}`;
   fs.appendFileSync(LOG_FILE(), `${line}\n`, 'utf8');
   console.log(line);

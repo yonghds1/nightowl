@@ -1,13 +1,12 @@
 import { Command } from 'commander';
-import fs from 'node:fs';
-import path from 'node:path';
 import { REPORT_FILE } from '../paths.js';
 import {
   loadPool,
   loadState,
-  saveState,
+  updateState,
   saveCheckpoint,
   clearCheckpoint,
+  atomicWrite,
   log,
   Pool,
   AppState,
@@ -253,25 +252,24 @@ export function createReportCommand(): Command {
         }
       }
 
-      // 原子写入
+      // 原子写入(锁 + 唯一临时文件),并发 report 不会踩固定 .tmp 名
       const reportFile = REPORT_FILE();
-      fs.mkdirSync(path.dirname(reportFile), { recursive: true });
-      const tmp = `${reportFile}.tmp`;
-      fs.writeFileSync(tmp, lines.join('\n'), 'utf8');
-      fs.renameSync(tmp, reportFile);
+      atomicWrite(reportFile, lines.join('\n'));
       const now = isoNow();
-      state.report = now;
-      state.last_run = now;
-      saveState(state);
+      updateState((fresh) => {
+        fresh.report = now;
+        fresh.last_run = now;
+      });
 
       // 报告生成后处理 checkpoint
+      const freshState = loadState();
       const total = pool.pool.length;
-      const completed = state.completed.length;
+      const completed = freshState.completed.length;
       if (completed >= total) {
         clearCheckpoint();
         log(tr('checkpoint.clearedAll'));
       } else {
-        saveCheckpoint(pool, state);
+        saveCheckpoint(pool, freshState);
       }
 
       console.log(tr('report.written', { file: reportFile }));

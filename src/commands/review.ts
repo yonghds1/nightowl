@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { loadPool, savePool, log } from '../state.js';
+import { loadPool, updatePool, log } from '../state.js';
 import { isoNow } from '../util.js';
 import { t } from '../i18n.js';
 
@@ -22,13 +22,21 @@ export function createReviewCommand(): Command {
         process.exit(1);
       }
       // 审查历史:已有审查记录则先压入 history 再覆盖(保留多轮评审过程)
-      if (task.review) {
-        const history = task.review_history ?? [];
-        history.push(task.review);
-        task.review_history = history;
+      const applied = updatePool((pool) => {
+        const target = pool.pool.find((x) => x.id === id);
+        if (!target) return false;
+        if (target.review) {
+          const history = target.review_history ?? [];
+          history.push(target.review);
+          target.review_history = history;
+        }
+        target.review = { result: opts.result, level: opts.level, note: opts.note ?? '', at: isoNow() };
+        return true;
+      });
+      if (!applied) {
+        console.error(t('common.taskNotFound', { id }));
+        process.exit(1);
       }
-      task.review = { result: opts.result, level: opts.level, note: opts.note ?? '', at: isoNow() };
-      savePool(pool);
       log(t('review.log', { id, result: opts.result, level: opts.level, note: opts.note ?? '' }));
       console.log(t('review.ok', { result: opts.result }));
     });

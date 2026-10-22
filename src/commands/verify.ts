@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { runShell, git } from '../git.js';
-import { loadPool, savePool } from '../state.js';
+import { loadPool, updatePool } from '../state.js';
 import { isoNow } from '../util.js';
 import { t } from '../i18n.js';
 import { TASKS_DIR } from '../paths.js';
@@ -16,6 +16,26 @@ export { extractDiagnostic };
 export interface VerifyOptions {
   id?: string;
   cwd?: string;
+}
+
+export interface VerifyReceipt {
+  at: string;
+  commands: string[];
+  head?: string;
+  dirty_diff_hash?: string;
+}
+
+/**
+ * 事务化写回验证回执:锁内重新读取 pool,只更新目标任务。
+ * verify 可能跑几分钟,期间 review/done 的改动不能被"开跑前的快照"整文件覆盖。
+ */
+export function recordVerifyPassed(taskId: string, receipt: VerifyReceipt): boolean {
+  return updatePool((pool) => {
+    const target = pool.pool.find((t) => t.id === taskId);
+    if (!target) return false;
+    target.verify_passed = receipt;
+    return true;
+  });
 }
 
 export function getTaskFeedbackPath(id: string): string {
@@ -136,13 +156,17 @@ export function createVerifyCommand(): Command {
           : 'clean';
       }
 
-      task.verify_passed = {
+      // 不直接 savePool(陈旧快照):事务内重读,避免覆盖并发 review/status 修改
+      const receipt: VerifyReceipt = {
         at: isoNow(),
         commands: cmds,
         ...(head ? { head } : {}),
         ...(dirty_diff_hash ? { dirty_diff_hash } : {}),
       };
-      savePool(pool);
+      if (!recordVerifyPassed(taskId, receipt)) {
+        console.error(t('verify.recordFailed', { id: taskId }));
+        process.exit(1);
+      }
       console.log('ALL_PASS');
     });
 }

@@ -2,12 +2,12 @@ import { Command } from 'commander';
 import { spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { loadPool, loadState, saveState, savePool, saveCheckpoint, type AppState } from '../state.js';
+import { loadPool, loadState, updatePool, updateState, saveCheckpoint, type AppState } from '../state.js';
 import { pickNextTask } from './next.js';
 import { resolvePlatform } from '../platforms/index.js';
 import type { HeadlessRun } from '../platforms/types.js';
 import { REPORT_FILE, SUPERVISOR_LOG, getBaseDir } from '../paths.js';
-import { fmtDateTime, isoNow } from '../util.js';
+import { fmtDateTime, isoNow, rotateFileIfLarge } from '../util.js';
 import { t } from '../i18n.js';
 
 // 无人值守续跑指令:精简版,主会话会读 nightowl-run skill 拿完整流程。
@@ -44,9 +44,7 @@ export function shouldStopIdle(idleRounds: number, maxIdle: number): boolean {
 
 /** 日志超阈值则改名 .1 重开(保留最近一份),防无人值守整晚膨胀。 */
 export function rotateLogIfLarge(logPath: string, maxBytes: number): void {
-  if (!fs.existsSync(logPath)) return;
-  const st = fs.statSync(logPath);
-  if (st.size > maxBytes) fs.renameSync(logPath, `${logPath}.1`);
+  rotateFileIfLarge(logPath, maxBytes);
 }
 
 // --- spawn 一轮主会话 ---
@@ -136,22 +134,26 @@ export function runHostRound(
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
-/** 阻塞指定任务:同步 pool task.status + state.blocked + checkpoint(与 nightowl block 一致)。 */
-export function blockInProgress(state: AppState, id: string, reason: string): void {
-  const pool = loadPool();
-  const task = pool?.pool.find((t) => t.id === id);
-  if (pool && task) {
+/** 阻塞指定任务:事务化同步 pool task.status + state.blocked + checkpoint(与 nightowl block 一致)。 */
+export function blockInProgress(_state: AppState, id: string, reason: string): void {
+  const blockedAt = isoNow();
+  updatePool((pool) => {
+    const task = pool.pool.find((t) => t.id === id);
+    if (!task) return false;
     task.status = 'blocked';
-    savePool(pool);
-  }
-  state.blocked.push({ id, reason, blocked_at: isoNow() });
-  state.in_progress = state.in_progress?.id === id ? null : state.in_progress;
-  saveState(state);
-  if (pool) {
-    const checkpointCfg = pool.checkpoint ?? { enabled: true, write_every: 1 };
-    if (checkpointCfg.enabled ?? true) {
-      saveCheckpoint(pool, state, { total: pool.pool.length, completed: state.completed.length });
-    }
+    return true;
+  });
+  updateState((fresh) => {
+    fresh.blocked.push({ id, reason, blocked_at: blockedAt });
+    if (fresh.in_progress?.id === id) fresh.in_progress = null;
+  });
+
+  const pool = loadPool();
+  if (!pool) return;
+  const freshState = loadState();
+  const checkpointCfg = pool.checkpoint ?? { enabled: true, write_every: 1 };
+  if (checkpointCfg.enabled ?? true) {
+    saveCheckpoint(pool, freshState, { total: pool.pool.length, completed: freshState.completed.length });
   }
 }
 
@@ -235,8 +237,10 @@ export async function superviseLoop(
     // 选中即标记进行中(与 next 一致):崩溃后 in_progress 有据,续跑 resume 幂等。
     const selectedId = task.id;
     if (state.in_progress?.id !== selectedId) {
-      state.in_progress = { id: selectedId, started_at: isoNow() };
-      saveState(state);
+      // 事务化写回;本地 state 不参与后续判定(每轮都会重新 loadState)
+      updateState((fresh) => {
+        fresh.in_progress = { id: selectedId, started_at: isoNow() };
+      });
     }
 
     const retryBudget = pool.schedule?.retry_budget ?? 2;

@@ -82,7 +82,8 @@
     "completedLog": "✅ {{id}} 完成,实际用时 {{actual}} 分",
     "ok": "✅ {{id}} 已标记完成",
     "prdBackfilled": "📄 PRD 已回填(done 自动):勾选 {{n}} 条有执行回执的验收命令",
-    "prdBackfillSkipped": "📄 PRD 回填跳过({{reason}}),不影响任务状态"
+    "prdBackfillSkipped": "📄 PRD 回填跳过({{reason}}),不影响任务状态",
+    "persistFailed": "❌ 无法写回任务 {{id}}(任务池在操作期间被修改,任务可能已删除)"
   },
   "block": {
     "desc": "阻塞",
@@ -92,7 +93,8 @@
   "verify": {
     "desc": "跑验收命令",
     "failed": "❌ {{id}} 验收命令失败(退出码 {{code}}): {{cmd}}",
-    "noHead": "⚠️ {{id}} 验收通过但取不到 git HEAD(目录: {{cwd}}),验证回执未绑定代码版本,worktree merge 的防偷改校验将不生效。"
+    "noHead": "⚠️ {{id}} 验收通过但取不到 git HEAD(目录: {{cwd}}),验证回执未绑定代码版本,worktree merge 的防偷改校验将不生效。",
+    "recordFailed": "❌ {{id}} 验证已通过,但任务池在验证期间被修改(任务可能已删除),回执未写入"
   },
   "commit": {
     "desc": "按任务规范提交(自动补 [#<id>] 标记,默认禁用交互式签名/编辑器)",

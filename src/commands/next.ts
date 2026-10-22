@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import { git } from '../git.js';
-import { loadPool, loadState, saveState, type AppState, type Pool, type Task } from '../state.js';
+import { loadPool, loadState, updateState, type AppState, type Pool, type Task } from '../state.js';
 import { isoNow } from '../util.js';
 import { t as tr } from '../i18n.js';
 
@@ -107,8 +107,10 @@ export function createNextCommand(): Command {
         else if (cs.status === 'merged') console.log(`# RESUME_COMMITTED ${t.id} ${cs.hash}`);
         else console.log(`# RESUME in_progress ${t.id}`);
       } else {
-        state.in_progress = { id: t.id, started_at: isoNow() };
-        saveState(state);
+        // 事务化写回:多实例并发 next 时避免互相覆盖 in_progress
+        updateState((fresh) => {
+          fresh.in_progress = { id: t.id, started_at: isoNow() };
+        });
       }
       printTask(t);
     });

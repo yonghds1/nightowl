@@ -82,7 +82,9 @@
     "completedLog": "✅ {{id}} done, took {{actual}} min",
     "ok": "✅ {{id}} marked done",
     "prdBackfilled": "📄 PRD backfilled by done: checked {{n}} acceptance command(s) with execution receipts",
-    "prdBackfillSkipped": "📄 PRD backfill skipped ({{reason}}); task state unaffected"
+    "prdBackfillSkipped": "📄 PRD backfill skipped ({{reason}}); task state unaffected",
+
+    "persistFailed": "❌ Could not persist task {{id}} (the pool changed during the operation; task may be gone)"
   },
   "block": {
     "desc": "Block task",
@@ -92,7 +94,8 @@
   "verify": {
     "desc": "Run verification commands",
     "failed": "❌ {{id}} verification command failed (exit code {{code}}): {{cmd}}",
-    "noHead": "⚠️ {{id}} passed but git HEAD unavailable (dir: {{cwd}}); receipt is not bound to a code version and worktree merge stale-check will not apply."
+    "noHead": "⚠️ {{id}} passed but git HEAD unavailable (dir: {{cwd}}); receipt is not bound to a code version and worktree merge stale-check will not apply.",
+    "recordFailed": "❌ {{id}} passed, but the pool changed during verification (task may be gone); receipt not recorded"
   },
   "commit": {
     "desc": "Commit with task conventions (auto-adds [#<id>], disables interactive signing/editor)",

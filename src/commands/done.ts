@@ -3,8 +3,8 @@ import path from 'node:path';
 import {
   loadPool,
   loadState,
-  savePool,
-  saveState,
+  updatePool,
+  updateState,
   log,
   saveCheckpoint,
   shouldCheckpoint,
@@ -14,7 +14,7 @@ import { probeGit } from '../git.js';
 import { backfillPrd } from '../prd.js';
 import { resolvePlatform } from '../platforms/index.js';
 import { getBaseDir } from '../paths.js';
-import { isoNow } from '../util.js';
+import { isoNow, minutesBetween } from '../util.js';
 import { t } from '../i18n.js';
 
 export function createDoneCommand(): Command {
@@ -75,37 +75,64 @@ export function createDoneCommand(): Command {
           console.log(t('done.noCommitWarn', { id }));
         }
       }
+      // actual_min 优先级:显式参数 > in_progress.started_at 实测 > 预估兜底。
+      // 不实测的话"工时偏差"永远是 0%,报告看板形同虚设。
+      let measuredActual: number;
       if (actualMin === undefined || Number.isNaN(actualMin)) {
-        actualMin = task.est_min ?? 15;
+        const startedAt = state.in_progress?.id === id ? state.in_progress.started_at : undefined;
+        measuredActual = (startedAt ? minutesBetween(startedAt) : null) ?? task.est_min ?? 15;
+      } else {
+        measuredActual = actualMin;
       }
-      task.status = 'done';
-      task.actual_min = actualMin;
-      savePool(pool);
-      state.completed.push({ id, actual_min: actualMin, finished_at: isoNow() });
-      state.in_progress = null;
-      saveState(state);
+
+      // 事务化写回:verify/review 在 done 执行期间完成的修改不会被陈旧快照覆盖
+      const applied = updatePool((fresh) => {
+        const target = fresh.pool.find((x) => x.id === id);
+        if (!target) return false;
+        target.status = 'done';
+        target.actual_min = measuredActual;
+        return true;
+      });
+      if (!applied) {
+        console.error(t('done.persistFailed', { id }));
+        process.exit(1);
+      }
+      const finishedAt = isoNow();
+      updateState((fresh) => {
+        if (!fresh.completed.some((c) => c.id === id)) {
+          fresh.completed.push({ id, actual_min: measuredActual, finished_at: finishedAt });
+        }
+        fresh.in_progress = null;
+      });
 
       const checkpointCfg = pool.checkpoint ?? { enabled: true, write_every: 1 };
       const interval = checkpointCfg.write_every ?? 1;
-      if ((checkpointCfg.enabled ?? true) && shouldCheckpoint(state, interval)) {
-        const total = pool.pool.length;
-        const completed = state.completed.length;
-        saveCheckpoint(pool, state, { total, completed });
+      const freshPool = loadPool() ?? pool;
+      const freshState = loadState();
+      if ((checkpointCfg.enabled ?? true) && shouldCheckpoint(freshState, interval)) {
+        const total = freshPool.pool.length;
+        const completed = freshState.completed.length;
+        saveCheckpoint(freshPool, freshState, { total, completed });
         log(t('checkpoint.savedLog', { completed, total }));
       }
 
       // PRD 回填放在状态落盘之后:即使回填失败,任务状态也已持久化,不会出现
       // "任务没完成但文档已写完成"的错位。回填本身绝不让 done 失败。
-      const finishedAt = state.completed[state.completed.length - 1]?.finished_at ?? isoNow();
       const commit = probeGit().isRepo ? taskCommitInHead(id) : null;
-      const bf = backfillPrd(task.prd_path, { ...task, status: 'done' }, actualMin, finishedAt, commit);
+      const bf = backfillPrd(
+        task.prd_path,
+        { ...task, status: 'done' },
+        measuredActual,
+        finishedAt,
+        commit,
+      );
       if (bf.changed) {
         log(t('done.prdBackfilled', { id, n: bf.checkedCommands }));
       } else if (bf.skipped && bf.skipped !== 'no-prd') {
         log(t('done.prdBackfillSkipped', { id, reason: bf.skipped }));
       }
 
-      log(t('done.completedLog', { id, actual: actualMin }));
+      log(t('done.completedLog', { id, actual: measuredActual }));
       console.log(t('done.ok', { id }));
     });
 }

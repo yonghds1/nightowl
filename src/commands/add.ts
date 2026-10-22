@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import fs from 'node:fs';
 import path from 'node:path';
 import { pkgRoot, TASKS_DIR } from '../paths.js';
-import { loadPool, savePool, log, type Task } from '../state.js';
+import { loadPool, updatePool, log, type Task } from '../state.js';
 import { slugify, datePrefix, safeSegment } from '../util.js';
 import { getIdentity, DEFAULT_IDENTITY } from '../identity.js';
 import { t } from '../i18n.js';
@@ -114,8 +114,16 @@ export function createAddCommand(): Command {
       if (args.verify?.length) task.verify = args.verify;
       const prdPath = renderPrd(args, task);
       if (prdPath) task.prd_path = prdPath;
-      pool.pool.push(task);
-      savePool(pool);
+      // 事务化追加:并发 add 不会互相覆盖
+      const applied = updatePool((fresh) => {
+        if (fresh.pool.some((x) => x.id === task.id)) return false;
+        fresh.pool.push(task);
+        return true;
+      });
+      if (!applied) {
+        console.error(t('add.taskExists', { id: args.id }));
+        process.exit(1);
+      }
       log(t('add.added', { id: args.id, prio: task.priority, title: args.title, est: task.est_min, assignee }));
       console.log(t('add.ok'));
     });
