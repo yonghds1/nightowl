@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { loadPool, updatePool, log } from '../state.js';
 import { isoNow } from '../util.js';
+import { verificationEvidence } from '../evidence.js';
 import { t } from '../i18n.js';
 
 export function createReviewCommand(): Command {
@@ -30,7 +31,10 @@ export function createReviewCommand(): Command {
           history.push(target.review);
           target.review_history = history;
         }
-        target.review = { result: opts.result, level: opts.level, note: opts.note ?? '', at: isoNow() };
+        target.review = {
+          result: opts.result, level: opts.level, note: opts.note ?? '', at: isoNow(),
+          ...(verificationEvidence(target) === 'valid' ? { verify_run_id: target.verification_run?.id } : {}),
+        };
         return true;
       });
       if (!applied) {

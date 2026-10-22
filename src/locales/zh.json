@@ -202,14 +202,14 @@
     "title": "# 📊 nightowl 报告",
     "generatedAt": "生成时间: {{time}}",
     "execSummary": "## 🚦 决策看板 (Executive Summary)",
-    "releaseLine": "> **发版判定**: {{verdict}} — *{{reason}}*  ",
+    "releaseLine": "> **交付证据判定**: {{verdict}} — *{{reason}}*  ",
     "progressLine": "> **任务进度**: 已完成 {{done}}/{{total}} (P0: {{p0Done}}/{{p0Total}}) | 阻塞: {{blocked}} | 待办: {{pending}}  ",
     "deviationLine": "> **工时偏差**: 预估 {{est}}m / 实际 {{actual}}m ({{pct}}) | 审查打回: {{fails}} 次 | 建议(Nits): {{nits}} 个",
     "estimateLine": "> **工时预估**: 预估总工时 {{est}}m | 审查打回: {{fails}} 次 | 建议(Nits): {{nits}} 个",
-    "verdictReady": "🟢 【可发版】",
-    "verdictConditional": "🟡 【条件发版】",
-    "verdictBlocked": "🔴 【不可发版】",
-    "reasonReady": "全部预期任务已验证完成并通过审查",
+    "verdictReady": "🟢 【任务证据通过，发版待核实】",
+    "verdictConditional": "🟡 【证据不足或需复核】",
+    "verdictBlocked": "🔴 【证据未通过】",
+    "reasonReady": "全部任务具有当前有效的验收与审查记录",
     "reasonBlocked": "存在 {{n}} 个阻塞任务待人工介入",
     "reasonP0": "核心 P0 任务尚未全部完成 ({{done}}/{{total}})",
     "reasonReview": "存在 {{n}} 轮打回重试记录，需关注返工代码",
@@ -388,5 +388,13 @@
     "project": "项目目录: {{path}}",
     "repository": "Git 仓库: {{path}}",
     "pushSkipped": "根目录未执行推送，也没有推送任何子仓库；仅在任务明确约定时分别推送目标仓库。"
+  },
+  "evidence": {
+    "verifyRequired": "❌ {{id}} 缺少当前验收轮次的有效通过回执，请重新验收。",
+    "reviewRequired": "❌ {{id}} 的审查未绑定当前通过的验收轮次，请重新审查。",
+    "reportInvalid": "存在失败、运行中或已过期的验收/审查证据: {{ids}}",
+    "reportMissing": "任务完成但缺少可核实的当前验收/审查证据: {{ids}}",
+    "reportPending": "尚有待办任务或没有可评估交付（待办 {{n}} 项）",
+    "reportScope": "> **判定范围**：仅评估任务的验收/审查记录；未核实生产环境、部署、推送或全部子仓版本，不构成自动发版授权。"
   }
 }

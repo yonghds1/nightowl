@@ -5,6 +5,7 @@ import { git, gitCurrentBranch, probeGit, runShell } from '../git.js';
 import { getBaseDir } from '../paths.js';
 import { loadPool } from '../state.js';
 import { assertTaskId } from '../task-id.js';
+import { failIntegrationEvidence, verificationEvidence } from '../evidence.js';
 import { extractDiagnostic } from '../diagnostic.js';
 
 export function getWorktreePath(id: string): string {
@@ -184,6 +185,10 @@ export function createWorktreeCommand(): Command {
       // 验证回执强校验: 比对当前分支的 HEAD 与验证记录是否一致
       const pool = loadPool();
       const task = pool?.pool.find((t) => t.id === id);
+      if (task?.verify?.length && verificationEvidence(task) !== 'valid') {
+        console.error(`VERIFY_RECORD_STALE: ${id} requires current passing verification evidence`);
+        process.exit(1);
+      }
       if (task?.verify?.length && task.verify_passed?.head) {
         const currentBranchHead = git(['rev-parse', branch]).stdout.trim();
         if (currentBranchHead && currentBranchHead !== task.verify_passed.head) {
@@ -239,6 +244,7 @@ export function createWorktreeCommand(): Command {
           const rr = runShell(cmd);
           if (rr.code === 0) continue;
 
+          failIntegrationEvidence(id, task?.verification_run?.id);
           const diagnostic = extractDiagnostic(rr.stdout, rr.stderr);
           const reset = beforeHead
             ? git(['reset', '--hard', beforeHead])

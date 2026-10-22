@@ -37,8 +37,8 @@ nightowl preflight
 4. **机器门禁独立验证**：回到根目录运行 `nightowl verify --id <id>`。
    - 单仓库优先使用已有 worktree，成功回执绑定该 Git HEAD。
    - 混合工作区的门禁必须明确路径，例如 `cd "repo a" && npm test`；普通目录也必须有客观检查。无统一 HEAD 时回执明确告警，不具备跨仓版本绑定，不能声称所有仓库版本已锁定。
-   - 失败读取 `.nightowl/tasks/<id>/feedback.json` 定向修复，不能强行跳过；无法修复则 block。
-5. **审查裁决**：核对代码、实际验收结果及相关子仓提交状态，运行 `nightowl review <id> --result PASS`。非 Git 模式的 done 不会机器核验每个子仓提交，审查时必须检查，不得把它当成已有保障。
+   - 每次验收开始即作废旧通过回执。失败、运行中或命令变更后的旧回执不可用于 done；失败读取 `.nightowl/tasks/<id>/feedback.json` 定向修复，不能强行跳过；无法修复则 block。
+5. **审查裁决**：必须先验收再审查，审查绑定当前成功轮次；任何重新验收都需再次审查，不能复用旧 PASS。核对代码、实际验收结果及相关子仓提交状态，运行 `nightowl review <id> --result PASS`。非 Git 模式的 done 不会机器核验每个子仓提交，审查时必须检查，不得把它当成已有保障。
 6. **合入与清理**：回到根目录运行 `nightowl worktree merge <id>` 和 `nightowl worktree cleanup <id>`。
    - 单仓库：检查版本后合并并重跑门禁；失败自动回滚合并。使用 `git worktree remove` 安全移除，未提交内容保留现场。
    - 非 Git 根：接受 `WORKTREE_MERGE_SKIPPED:`、`WORKTREE_CLEAN_SKIPPED:`，继续下一步；这些输出不表示对子仓执行了合并或清理。

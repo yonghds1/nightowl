@@ -121,8 +121,8 @@ describe('done verify 关口', () => {
 
   it('verify 通过后 done 放行', () => {
     addVerified();
-    runCommand(createReviewCommand(), ['T2', '--result', 'PASS']);
     runCommand(createVerifyCommand(), ['T2']);
+    runCommand(createReviewCommand(), ['T2', '--result', 'PASS']);
     const r = runCommand(createDoneCommand(), ['T2', '5']);
     expect(r.exitCode).toBeUndefined();
     expect(task('T2').status).toBe('done');

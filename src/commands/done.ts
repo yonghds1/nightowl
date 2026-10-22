@@ -10,6 +10,7 @@ import {
   shouldCheckpoint,
 } from '../state.js';
 import { taskCommitInHead } from './next.js';
+import { verificationEvidence, reviewEvidence } from '../evidence.js';
 import { probeGit } from '../git.js';
 import { backfillPrd } from '../prd.js';
 import { resolvePlatform } from '../platforms/index.js';
@@ -36,10 +37,6 @@ export function createDoneCommand(): Command {
         console.error(t('common.taskNotFound', { id }));
         process.exit(1);
       }
-      if (state.completed.some((c) => c.id === id)) {
-        console.log(t('done.alreadyDone', { id }));
-        return;
-      }
       if (!opts.force) {
         // 审查关口:仅 PASS / PASS_WITH_NITS 放行
         const result = task.review?.result;
@@ -59,6 +56,14 @@ export function createDoneCommand(): Command {
           console.error(t('done.noVerifyHint'));
           process.exit(1);
         }
+        if ((task.verify?.length || task.verification_run) && verificationEvidence(task) !== 'valid') {
+          console.error(t('evidence.verifyRequired', { id }));
+          process.exit(1);
+        }
+        if (reviewEvidence(task) !== 'valid') {
+          console.error(t('evidence.reviewRequired', { id }));
+          process.exit(1);
+        }
         // git 硬核验:主分支 HEAD 应存在含 `[#<id>]` 标记的 commit(证明确实实现并合并了,
         // 而非仅靠模型自报 review/verify 状态)。claude 默认只警告(不破坏既有无人值守流程),
         // 新平台默认阻断;--require-commit 让所有平台都阻断。--force 已整体旁路本块。
@@ -75,6 +80,10 @@ export function createDoneCommand(): Command {
           console.log(t('done.noCommitWarn', { id }));
         }
       }
+      if (state.completed.some((c) => c.id === id)) {
+        console.log(t('done.alreadyDone', { id }));
+        return;
+      }
       // actual_min 优先级:显式参数 > in_progress.started_at 实测 > 预估兜底。
       // 不实测的话"工时偏差"永远是 0%,报告看板形同虚设。
       let measuredActual: number;
@@ -89,6 +98,10 @@ export function createDoneCommand(): Command {
       const applied = updatePool((fresh) => {
         const target = fresh.pool.find((x) => x.id === id);
         if (!target) return false;
+        if (!opts.force && (
+          ((target.verify?.length || target.verification_run) && verificationEvidence(target) !== 'valid') ||
+          reviewEvidence(target) !== 'valid'
+        )) return false;
         target.status = 'done';
         target.actual_min = measuredActual;
         return true;

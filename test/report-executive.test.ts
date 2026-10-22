@@ -2,6 +2,17 @@ import { describe, it, expect } from 'vitest';
 import { buildExecutiveSummary, groupGitByTask } from '../src/commands/report.js';
 import { Pool, AppState } from '../src/state.js';
 
+function addEvidence(pool: Pool): void {
+  for (const task of pool.pool) {
+    const id = `run-${task.id}`;
+    const commands = ['true'];
+    task.verify = commands;
+    task.verification_run = { id, status: 'passed', at: 'now', commands };
+    task.verify_passed = { run_id: id, at: 'now', commands };
+    task.review = { result: 'PASS', at: 'now', level: 'full', note: '', verify_run_id: id };
+  }
+}
+
 describe('Executive Summary 与 Git 聚合分析', () => {
   it('全通过时给出 READY 判定并计算工时偏差', () => {
     const pool: Pool = {
@@ -23,6 +34,7 @@ describe('Executive Summary 与 Git 聚合分析', () => {
       last_run: '',
     };
 
+    addEvidence(pool);
     const summary = buildExecutiveSummary(pool, state);
     expect(summary.verdict).toBe('READY'); // 偏差率 (105-90)/90 = 16.6% <= 30%
     expect(summary.done).toBe(2);
@@ -85,9 +97,10 @@ f5d96c1 chore: release 0.4.2
         in_progress: null,
       };
 
+      addEvidence(pool);
       const summary = buildExecutiveSummary(pool, state);
       expect(summary.verdict).toBe('READY');
-      expect(summary.verdictReason).toBe('All expected tasks verified and reviewed');
+      expect(summary.verdictReason).toBe('All tasks have current passing verification and linked review records');
       expect(summary.verdictReason).not.toMatch(/[\u4e00-\u9fff]/);
 
       const grouped = groupGitByTask('abc1234 chore: release');

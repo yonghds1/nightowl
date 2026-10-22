@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { loadPool } from '../src/state.js';
 import { setBaseDir } from '../src/paths.js';
 import { createInitCommand } from '../src/commands/init.js';
 import { createAddCommand } from '../src/commands/add.js';
@@ -75,6 +76,11 @@ describe('worktree merge 的合并后复验', () => {
     // 任务分支与 worktree 现场保留,便于修复后重试
     expect(git(['branch', '--list', 'nightowl/T1']).stdout).toContain('nightowl/T1');
     expect(fs.existsSync(path.join(wtPath('T1'), 'impl.txt'))).toBe(true);
+    expect(loadPool()!.pool[0].verify_passed).toBeUndefined();
+    expect(loadPool()!.pool[0].verification_run?.status).toBe('failed');
+    const retry = runCommand(createWorktreeCommand(), ['merge', 'T1']);
+    expect(retry.exitCode).toBe(1);
+    expect(retry.output).toContain('VERIFY_RECORD_STALE:');
   });
 
   it('合并后仍通过 → WORKTREE_MERGED,主分支拿到合并提交', () => {

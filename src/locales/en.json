@@ -202,14 +202,14 @@
     "title": "# 📊 nightowl Report",
     "generatedAt": "Generated: {{time}}",
     "execSummary": "## 🚦 Executive Summary",
-    "releaseLine": "> **Release verdict**: {{verdict}} — *{{reason}}*  ",
+    "releaseLine": "> **Delivery evidence verdict**: {{verdict}} — *{{reason}}*  ",
     "progressLine": "> **Progress**: {{done}}/{{total}} done (P0: {{p0Done}}/{{p0Total}}) | blocked: {{blocked}} | pending: {{pending}}  ",
     "deviationLine": "> **Effort deviation**: est {{est}}m / actual {{actual}}m ({{pct}}) | review rejects: {{fails}} | nits: {{nits}}",
     "estimateLine": "> **Effort estimate**: total est {{est}}m | review rejects: {{fails}} | nits: {{nits}}",
-    "verdictReady": "🟢 [Ready to ship]",
-    "verdictConditional": "🟡 [Conditional]",
+    "verdictReady": "🟢 [Task evidence passed; release not assessed]",
+    "verdictConditional": "🟡 [Conditional; evidence incomplete or needs review]",
     "verdictBlocked": "🔴 [Blocked]",
-    "reasonReady": "All expected tasks verified and reviewed",
+    "reasonReady": "All tasks have current passing verification and linked review records",
     "reasonBlocked": "{{n}} blocked task(s) need manual intervention",
     "reasonP0": "P0 tasks are not all complete ({{done}}/{{total}})",
     "reasonReview": "{{n}} review rejection round(s); inspect the rework",
@@ -388,5 +388,13 @@
     "project": "Project directory: {{path}}",
     "repository": "Git repository: {{path}}",
     "pushSkipped": "No push was performed at the root or in any child repository; push individual repositories only when explicitly required by the task."
+  },
+  "evidence": {
+    "verifyRequired": "❌ {{id}} needs a valid receipt for the current verification run; verify again.",
+    "reviewRequired": "❌ {{id}} review is not linked to the current passing verification run; review again.",
+    "reportInvalid": "Failed, running, or stale verification/review evidence: {{ids}}",
+    "reportMissing": "Completed tasks lack current verifiable verification/review evidence: {{ids}}",
+    "reportPending": "Tasks remain pending or no delivery can be assessed ({{n}} pending)",
+    "reportScope": "> **Verdict scope**: task verification/review records only. Production, deployment, pushes, and all child repository versions are not validated; this is not automatic release authorization."
   }
 }

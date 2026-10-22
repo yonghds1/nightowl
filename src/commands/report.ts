@@ -13,6 +13,7 @@ import {
 } from '../state.js';
 import { fmtDateTime, isoNow } from '../util.js';
 import { git } from '../git.js';
+import { verificationEvidence, reviewEvidence } from '../evidence.js';
 import { noteFreshnessFor } from '../report-freshness.js';
 import { t as tr } from '../i18n.js';
 
@@ -30,6 +31,8 @@ export interface ExecutiveSummary {
   deviationRatio: number | null; // null 表示无实际耗时记录
   reviewFailRounds: number;
   nitsCount: number;
+  evidenceMissing: string[];
+  evidenceInvalid: string[];
 }
 
 export function buildExecutiveSummary(pool: Pool, state: AppState): ExecutiveSummary {
@@ -75,15 +78,31 @@ export function buildExecutiveSummary(pool: Pool, state: AppState): ExecutiveSum
     }
   }
 
+  const evidenceMissing: string[] = [];
+  const evidenceInvalid: string[] = [];
+  for (const task of pool.pool) {
+    const verification = verificationEvidence(task);
+    const review = reviewEvidence(task);
+    if (verification === 'invalid' || review === 'invalid') evidenceInvalid.push(task.id);
+    else if (doneIds.has(task.id) && (verification !== 'valid' || review !== 'valid')) evidenceMissing.push(task.id);
+  }
   let verdict: 'READY' | 'CONDITIONAL' | 'BLOCKED' = 'READY';
   let verdictReason = tr('report.reasonReady');
 
-  if (blocked > 0 || p0Done < p0Total) {
+  if (evidenceInvalid.length) {
+    verdict = 'BLOCKED';
+    verdictReason = tr('evidence.reportInvalid', { ids: evidenceInvalid.join(', ') });
+  } else if (blocked > 0 || p0Done < p0Total) {
     verdict = 'BLOCKED';
     verdictReason =
       blocked > 0
         ? tr('report.reasonBlocked', { n: blocked })
         : tr('report.reasonP0', { done: p0Done, total: p0Total });
+  } else if (evidenceMissing.length || pending > 0 || total === 0) {
+    verdict = 'CONDITIONAL';
+    verdictReason = evidenceMissing.length
+      ? tr('evidence.reportMissing', { ids: evidenceMissing.join(', ') })
+      : tr('evidence.reportPending', { n: pending });
   } else if (reviewFailRounds > 0 || nitsCount > 0 || (deviationRatio !== null && deviationRatio > 0.3)) {
     verdict = 'CONDITIONAL';
     verdictReason =
@@ -97,6 +116,8 @@ export function buildExecutiveSummary(pool: Pool, state: AppState): ExecutiveSum
   return {
     verdict,
     verdictReason,
+    evidenceMissing,
+    evidenceInvalid,
     total,
     done,
     blocked,
@@ -153,6 +174,7 @@ export function createReportCommand(): Command {
       );
       lines.push(tr('report.execSummary'), '');
       lines.push(tr('report.releaseLine', { verdict: verdictIcon, reason: summary.verdictReason }));
+      lines.push(tr('evidence.reportScope'));
       lines.push(
         tr('report.progressLine', {
           done: summary.done,

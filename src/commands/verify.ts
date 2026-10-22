@@ -3,12 +3,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { runShell, git } from '../git.js';
-import { loadPool, updatePool } from '../state.js';
+import { loadPool, updatePool, atomicWrite } from '../state.js';
 import { isoNow } from '../util.js';
 import { t } from '../i18n.js';
 import { TASKS_DIR } from '../paths.js';
 import { getWorktreePath } from './worktree.js';
 import { assertTaskId } from '../task-id.js';
+import { beginVerification, finishVerification } from '../evidence.js';
 import { extractDiagnostic } from '../diagnostic.js';
 
 export { extractDiagnostic };
@@ -19,6 +20,7 @@ export interface VerifyOptions {
 }
 
 export interface VerifyReceipt {
+  run_id?: string;
   at: string;
   commands: string[];
   head?: string;
@@ -27,12 +29,14 @@ export interface VerifyReceipt {
 
 /**
  * 事务化写回验证回执:锁内重新读取 pool,只更新目标任务。
+ * 新回执必须携带 run_id；无轮次的调用仅保留旧数据写入兼容，不满足正常 done 门禁。
  * verify 可能跑几分钟,期间 review/done 的改动不能被"开跑前的快照"整文件覆盖。
  */
 export function recordVerifyPassed(taskId: string, receipt: VerifyReceipt): boolean {
+  if (receipt.run_id) return finishVerification(taskId, receipt.run_id, receipt);
   return updatePool((pool) => {
     const target = pool.pool.find((t) => t.id === taskId);
-    if (!target) return false;
+    if (!target || target.verification_run) return false;
     target.verify_passed = receipt;
     return true;
   });
@@ -71,7 +75,7 @@ export function createVerifyCommand(): Command {
         console.error(t('common.taskNotFound', { id: taskId }));
         process.exit(1);
       }
-      const cmds = task.verify ?? [];
+      const cmds = [...(task.verify ?? [])];
       if (!cmds.length) {
         console.log('VERIFY_NONE');
         return;
@@ -89,6 +93,11 @@ export function createVerifyCommand(): Command {
         }
       }
 
+      const runId = beginVerification(taskId, cmds);
+      if (!runId) {
+        console.error(t('verify.recordFailed', { id: taskId }));
+        process.exit(1);
+      }
       for (const c of cmds) {
         const r = runShell(c, { cwd: execCwd });
         if (r.code !== 0) {
@@ -110,19 +119,13 @@ export function createVerifyCommand(): Command {
             exitCode: r.code,
             diagnostic,
           };
-          fs.writeFileSync(fbPath, JSON.stringify(feedbackData, null, 2), 'utf8');
+          if (!finishVerification(taskId, runId, undefined, () => {
+            atomicWrite(fbPath, JSON.stringify(feedbackData, null, 2));
+          })) {
+            console.error(t('verify.recordFailed', { id: taskId }));
+          }
 
           process.exit(1);
-        }
-      }
-
-      // 验证成功, 清理旧 feedback.json
-      const fbPath = getTaskFeedbackPath(taskId);
-      if (fs.existsSync(fbPath)) {
-        try {
-          fs.unlinkSync(fbPath);
-        } catch {
-          // ignore cleanup error
         }
       }
 
@@ -158,12 +161,16 @@ export function createVerifyCommand(): Command {
 
       // 不直接 savePool(陈旧快照):事务内重读,避免覆盖并发 review/status 修改
       const receipt: VerifyReceipt = {
+        run_id: runId,
         at: isoNow(),
         commands: cmds,
         ...(head ? { head } : {}),
         ...(dirty_diff_hash ? { dirty_diff_hash } : {}),
       };
-      if (!recordVerifyPassed(taskId, receipt)) {
+      if (!finishVerification(taskId, runId, receipt, () => {
+        const fbPath = getTaskFeedbackPath(taskId);
+        if (fs.existsSync(fbPath)) fs.unlinkSync(fbPath);
+      })) {
         console.error(t('verify.recordFailed', { id: taskId }));
         process.exit(1);
       }

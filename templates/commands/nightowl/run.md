@@ -15,7 +15,7 @@
    - `WORKTREE_SKIPPED:`：原目录串行执行，不创建或进入不存在的 worktree，不并行修改共享目录。
 4. 实现后只暂存任务文件，再 `nightowl commit --task <id> -m "实现任务"`。混合工作区分别进入相关 Git 子仓提交，普通目录无需提交。子仓提交复用祖先任务池，不能加 `--dir <根>` 导致 Git 操作回到根目录。
 5. 回根目录 `nightowl verify --id <id>`；门禁明确子路径，例如 `cd "repo a" && npm test`。失败修复或 block，不得跳过。非 Git 根回执无统一 HEAD，不具备跨仓版本绑定。
-6. 检查验收和各相关子仓提交，`nightowl review <id> --result PASS`。
+6. 每次 verify 都作废旧通过证据；失败或运行中禁止 done，成功重跑也必须重新审查。检查当前验收轮次和各相关子仓提交，`nightowl review <id> --result PASS`。
 7. 根目录执行 `nightowl worktree merge <id>`、`nightowl worktree cleanup <id>`；接受非 Git 模式的 `WORKTREE_MERGE_SKIPPED:`、`WORKTREE_CLEAN_SKIPPED:`，不能声称子仓已经合并或清理。
 8. `nightowl done <id>`，失败有界重试，不能推进则 `nightowl block <id> "原因"`，转下一任务。
 9. 无任务后清理残留并 `nightowl report`。仅任务明确约定时推送对应仓库；根 `nightowl push` 输出 `PUSH_SKIPPED_NO_GIT` 表示没有推送子仓。

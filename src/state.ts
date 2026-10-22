@@ -16,6 +16,7 @@ import { t } from './i18n.js';
 import { assertTaskId } from './task-id.js';
 
 export interface Review {
+  verify_run_id?: string;
   result: string;
   level: string;
   note: string;
@@ -23,10 +24,18 @@ export interface Review {
 }
 
 export interface VerifyPassed {
+  run_id?: string;
   at: string;
   commands: string[];
   head?: string;
   dirty_diff_hash?: string;
+}
+
+export interface VerificationRun {
+  id: string;
+  status: 'running' | 'passed' | 'failed';
+  at: string;
+  commands: string[];
 }
 
 export interface Task {
@@ -43,6 +52,7 @@ export interface Task {
   prd_path?: string;
   actual_min?: number;
   verify_passed?: VerifyPassed;
+  verification_run?: VerificationRun;
   review?: Review;
   review_history?: Review[];
 }
