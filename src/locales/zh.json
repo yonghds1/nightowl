@@ -142,6 +142,8 @@
     "noRemote": "⚠️ 没有配置 git remote,跳过推送",
     "noRemoteSelected": "❌ 有多个 remote 但无法确定推送目标(branch: {{branch}}, remotes: {{remotes}})\n   ↪ 下一步: git branch --set-upstream-to=<remote>/{{branch}}",
     "detached": "❌ 当前处于 detached HEAD,无法自动推送\n   ↪ 下一步: git switch <分支> 后重试",
+    "diverged": "❌ 本地与远端已分叉({{remote}}/{{branch}}: 本地领先 {{ahead}}、落后 {{behind}})\n   ↪ 下一步: git rebase {{remote}}/{{branch}}(或 git merge),解决冲突后再 nightowl push",
+    "fetchFailed": "⚠️ git fetch {{remote}} 失败,按本地已知的远端状态继续:\n{{err}}",
     "rejected": "❌ 远端已前进,推送被拒({{remote}}/{{branch}}):\n{{err}}\n   ↪ 下一步: git fetch {{remote}} && git rebase {{remote}}/{{branch}}",
     "nothing": "✅ 没有未推送的 commit(branch: {{branch}})",
     "unpushed": "📦 未推送 {{n}} 个 commit:",

@@ -12,9 +12,9 @@ let remoteDir: string;
 let extraRemotes: string[];
 let prevCwd: string;
 
-function git(args: string[], cwd: string = root): { status: number | null; stdout: string; stderr: string } {
+function git(args: string[], cwd: string = root): { status: number | null; stdout: string } {
   const r = spawnSync('git', ['-C', cwd, ...args], { encoding: 'utf8' });
-  return { status: r.status, stdout: (r.stdout ?? '').trim(), stderr: (r.stderr ?? '').trim() };
+  return { status: r.status, stdout: (r.stdout ?? '').trim() };
 }
 
 function bareRepo(prefix: string): string {
@@ -45,6 +45,23 @@ afterEach(() => {
   for (const d of extraRemotes) fs.rmSync(d, { recursive: true, force: true });
 });
 
+/** 模拟"另一台机器"往远端同一分支推一个 commit。 */
+function advanceRemote(branch: string, file = `remote-${Date.now()}.txt`): void {
+  // 裸库默认 HEAD 可能指向不存在的分支,先对齐,否则 clone 出来是空工作区
+  git(['symbolic-ref', 'HEAD', `refs/heads/${branch}`], remoteDir);
+  const other = fs.mkdtempSync(path.join(os.tmpdir(), 'nightowl-push-other-'));
+  extraRemotes.push(other);
+  spawnSync('git', ['clone', '-q', remoteDir, other], { encoding: 'utf8' });
+  git(['config', 'user.email', 'other@nightowl.local'], other);
+  git(['config', 'user.name', 'Other'], other);
+  // clone 出的分支可能不是目标分支(裸库 HEAD 未指向时),直接落到目标分支
+  git(['checkout', '-q', '-B', branch], other);
+  fs.writeFileSync(path.join(other, file), 'from elsewhere', 'utf8');
+  git(['add', file], other);
+  git(['commit', '-q', '-m', 'remote advance'], other);
+  expect(git(['push', '-q', 'origin', `HEAD:${branch}`], other).status).toBe(0);
+}
+
 describe('nightowl push 的 remote 选择', () => {
   it('优先当前分支跟踪的 remote', () => {
     expect(selectPushRemote(['origin', 'upstream'], 'upstream')).toBe('upstream');
@@ -68,7 +85,7 @@ describe('nightowl push 的无人值守防线', () => {
     expect(r.output).toContain('PUSH_DETACHED');
   });
 
-  it('没有 origin 但只有一个 remote → 正常推送并建立 upstream', () => {
+  it('没有 origin 但只有一个 remote → 推送并建立 upstream', () => {
     const up = bareRepo('nightowl-push-upstream-');
     extraRemotes.push(up);
     git(['remote', 'remove', 'origin']);
@@ -81,6 +98,20 @@ describe('nightowl push 的无人值守防线', () => {
     const branch = git(['branch', '--show-current']).stdout;
     expect(git(['rev-parse', '--verify', '--quiet', `refs/remotes/upstream/${branch}`]).status).toBe(0);
     expect(git(['rev-parse', branch], up).stdout).toBe(git(['rev-parse', 'HEAD']).stdout);
+    // upstream 必须真的建立,否则 git status 永远看不到 ahead/behind
+    expect(git(['config', '--get', `branch.${branch}.merge`]).stdout).toBe(`refs/heads/${branch}`);
+  });
+
+  it('远端 ref 已存在但本地分支没跟踪 → 仍然用 -u 建立 upstream', () => {
+    const branch = git(['branch', '--show-current']).stdout;
+    // 用原生 git 推一次(不带 -u):远端 ref 有了,但 branch.<name>.merge 仍未配置
+    expect(git(['push', '-q', 'origin', branch]).status).toBe(0);
+    expect(git(['config', '--get', `branch.${branch}.merge`]).stdout).toBe('');
+
+    git(['commit', '-q', '--allow-empty', '-m', 'local work']);
+    const r = runCommand(createPushCommand(), []);
+    expect(r.stdout).toContain('PUSH_OK');
+    expect(git(['config', '--get', `branch.${branch}.merge`]).stdout).toBe(`refs/heads/${branch}`);
   });
 
   it('多个 remote 且无 origin/无跟踪 → PUSH_NO_REMOTE_SELECTED,不猜', () => {
@@ -96,24 +127,34 @@ describe('nightowl push 的无人值守防线', () => {
     expect(r.output).toContain('PUSH_NO_REMOTE_SELECTED');
   });
 
-  it('远端已前进 → PUSH_REJECTED 且给出 rebase 下一步', () => {
+  it('双方都有新提交 → PUSH_DIVERGED(先同步,不做无谓 push)', () => {
     const branch = git(['branch', '--show-current']).stdout;
     expect(runCommand(createPushCommand(), []).stdout).toContain('PUSH_OK');
-    git(['symbolic-ref', 'HEAD', `refs/heads/${branch}`], remoteDir);
-
-    // 另一处 clone 推一个新 commit,让远端前进
-    const other = fs.mkdtempSync(path.join(os.tmpdir(), 'nightowl-push-other-'));
-    extraRemotes.push(other);
-    spawnSync('git', ['clone', '-q', remoteDir, other], { encoding: 'utf8' });
-    git(['config', 'user.email', 'other@nightowl.local'], other);
-    git(['config', 'user.name', 'Other'], other);
-    fs.writeFileSync(path.join(other, 'remote.txt'), 'from elsewhere', 'utf8');
-    git(['add', 'remote.txt'], other);
-    git(['commit', '-q', '-m', 'remote advance'], other);
-    expect(git(['push', '-q', 'origin', `HEAD:${branch}`], other).status).toBe(0);
-
+    advanceRemote(branch);
     git(['commit', '-q', '--allow-empty', '-m', 'local night work']);
+
     const r = runCommand(createPushCommand(), []);
+    expect(r.exitCode).toBe(1);
+    expect(r.output).toContain('PUSH_DIVERGED');
+    expect(r.output).toContain('rebase');
+  });
+
+  it('只落后不领先 → PUSH_NOTHING(fetch 后无内容可推)', () => {
+    const branch = git(['branch', '--show-current']).stdout;
+    expect(runCommand(createPushCommand(), []).stdout).toContain('PUSH_OK');
+    advanceRemote(branch);
+
+    const r = runCommand(createPushCommand(), []);
+    expect(r.stdout).toContain('PUSH_NOTHING');
+  });
+
+  it('--no-fetch 走本地陈旧状态 → 由远端拒绝并报 PUSH_REJECTED', () => {
+    const branch = git(['branch', '--show-current']).stdout;
+    expect(git(['push', '-q', 'origin', branch]).status).toBe(0);
+    git(['commit', '-q', '--allow-empty', '-m', 'local work']);
+    advanceRemote(branch);
+
+    const r = runCommand(createPushCommand(), ['--no-fetch']);
     expect(r.exitCode).toBe(1);
     expect(r.output).toContain('PUSH_REJECTED');
     expect(r.output).toContain('rebase');

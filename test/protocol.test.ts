@@ -63,6 +63,7 @@ const PROTOCOL = {
     'PUSH_DETACHED',
     'PUSH_NO_REMOTE_SELECTED',
     'PUSH_REJECTED',
+    'PUSH_DIVERGED',
   ],
   worktree: [
     'WORKTREE_READY:',

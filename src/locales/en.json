@@ -143,6 +143,8 @@
     "noRemote": "⚠️ No git remote configured, skipping push",
     "noRemoteSelected": "❌ Multiple remotes but no clear push target (branch: {{branch}}, remotes: {{remotes}})\n   ↪ Next: git branch --set-upstream-to=<remote>/{{branch}}",
     "detached": "❌ Detached HEAD, cannot push automatically\n   ↪ Next: git switch <branch> and retry",
+    "diverged": "❌ Local and remote have diverged ({{remote}}/{{branch}}: ahead {{ahead}}, behind {{behind}})\n   ↪ Next: git rebase {{remote}}/{{branch}} (or git merge), resolve conflicts, then nightowl push",
+    "fetchFailed": "⚠️ git fetch {{remote}} failed; continuing with locally known remote state:\n{{err}}",
     "rejected": "❌ Remote has moved ahead, push rejected ({{remote}}/{{branch}}):\n{{err}}\n   ↪ Next: git fetch {{remote}} && git rebase {{remote}}/{{branch}}",
     "nothing": "✅ No unpushed commits (branch: {{branch}})",
     "unpushed": "📦 {{n}} unpushed commit(s):",
