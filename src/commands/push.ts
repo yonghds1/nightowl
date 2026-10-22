@@ -17,6 +17,9 @@ export function selectPushRemote(remotes: string[], trackedRemote: string | null
 /** 远端拒绝的典型文案(non-fast-forward / 需要先 fetch / 钩子拒绝)。 */
 const NON_FAST_FORWARD = /non-fast-forward|fetch first|\[rejected\]|\[remote rejected\]|pre-receive hook declined/i;
 
+/** fetch/push 走网络,慢链路(或大仓)经常超过本地 git 的 60s 默认超时。 */
+const NETWORK_TIMEOUT_MS = 300_000;
+
 export function isNonFastForward(stderr: string): boolean {
   return NON_FAST_FORWARD.test(stderr);
 }
@@ -84,7 +87,7 @@ export function createPushCommand(): Command {
       // 先 fetch:否则 <remote>/<branch> 可能是几小时前的快照,既会虚报未推送数量,
       // 也会把"远端已前进"的分叉误当成普通可快进推送。fetch 失败不阻断(继续用本地状态)。
       if (opts.fetch !== false) {
-        const fetched = git(['fetch', '--quiet', remote]);
+        const fetched = git(['fetch', '--quiet', remote], { timeoutMs: NETWORK_TIMEOUT_MS });
         if (fetched.code !== 0) {
           console.error(
             t('push.fetchFailed', { remote, err: (fetched.stderr || fetched.stdout).slice(-300) }),
@@ -134,7 +137,7 @@ export function createPushCommand(): Command {
       const args = ['push'];
       if (!hasUpstream(branch)) args.push('-u');
       args.push(remote, branch);
-      const r = git(args);
+      const r = git(args, { timeoutMs: NETWORK_TIMEOUT_MS });
       if (r.code === 0) {
         console.log(t('push.ok', { branch }));
         log(t('push.log', { remote, branch }));
